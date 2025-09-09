@@ -70,8 +70,12 @@ export function RegisterForm() {
     }
 
     try {
-      // Generate user_id from first and last name
+      // Generate user_id from first and last name (backend will return numeric ID)
       const user_id = `${formData.firstName.toLowerCase()}.${formData.lastName.toLowerCase()}`.replace(/\s+/g, '.')
+      
+      console.log('=== REGISTRATION ATTEMPT ===');
+      console.log('Generated user_id:', user_id);
+      console.log('Email:', formData.email);
       
       const response = await authApi.register({
         user_id,
@@ -79,9 +83,14 @@ export function RegisterForm() {
         password: formData.password
       })
       
+      console.log('Registration response:', response);
+      
       if (response.success) {
-        // Registration successful, redirect to sign-in
-        router.push('/auth/sign-in?message=Registration successful! Please sign in.')
+        console.log('Registration successful, returned user_id:', response.user_id);
+        
+        // Registration successful - redirect to sign-in with success message
+        const message = encodeURIComponent('Registration successful! Please sign in with your credentials.');
+        router.push(`/auth/sign-in?message=${message}&email=${encodeURIComponent(formData.email)}`);
       } else {
         setError(response.message || 'Registration failed.')
       }

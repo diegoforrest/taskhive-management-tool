@@ -34,6 +34,8 @@ export function SignInForm() {
   React.useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const message = urlParams.get('message')
+    const emailParam = urlParams.get('email')
+    
     if (message) {
       setSuccessMessage(decodeURIComponent(message))
       // Clear the URL parameter
@@ -52,6 +54,12 @@ export function SignInForm() {
         password: savedPassword,
         rememberMe: true
       }))
+    } else if (emailParam) {
+      // Pre-fill email from registration redirect
+      setFormData(prev => ({
+        ...prev,
+        email: decodeURIComponent(emailParam)
+      }))
     }
   }, [])
   
@@ -67,12 +75,21 @@ export function SignInForm() {
     }
 
     try {
+      console.log('=== LOGIN ATTEMPT ===');
+      console.log('Using email as user_id:', formData.email);
+      
       const response = await authApi.login({
         user_id: formData.email, // Using email as user_id for login
         password: formData.password
       })
       
+      console.log('Login response:', response);
+      
       if (response.success && response.user) {
+        console.log('Login successful, user data:', response.user);
+        console.log('User ID from login:', response.user.user_id);
+        console.log('User ID type:', typeof response.user.user_id);
+        
         // Handle Remember Me functionality
         if (formData.rememberMe) {
           // Save credentials to localStorage
@@ -86,14 +103,17 @@ export function SignInForm() {
           localStorage.removeItem('rememberMe')
         }
 
-        // Store user in context
-        login({ 
-          user_id: response.user.user_id, 
-          email: formData.email 
-        }, response.token)
+        // Store user in context with numeric user_id
+        const userData = {
+          user_id: response.user.user_id, // This should be the numeric ID from backend
+          email: formData.email
+        };
         
-        // Redirect to task page after successful login
-        router.push('/task')
+        console.log('Storing user data in context:', userData);
+        login(userData, response.token)
+        
+        // Redirect to dashboard after successful login
+        router.push('/dashboard')
       } else {
         setError(response.message || 'Invalid credentials')
       }

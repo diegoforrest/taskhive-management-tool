@@ -1,4 +1,7 @@
-"use client"
+
+"use client";
+
+
 
 import * as React from "react"
 import { useTheme } from "next-themes"
@@ -30,6 +33,9 @@ import { useSearch } from "@/lib/search-context"
 import { tasksApi, Task } from "@/lib/api"
 
 export function TopBar() {
+  // Hydration fix: only render theme toggle after mount
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => { setMounted(true); }, []);
   const { theme, setTheme } = useTheme()
   const { user, logout, isAuthenticated } = useAuth()
   const { setHighlightedTaskId } = useSearch()
@@ -181,47 +187,49 @@ export function TopBar() {
           {/* Right side: theme toggle, search, user menu */}
           <div className="flex items-center gap-1 sm:gap-2 md:gap-4">
             {/* Theme Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
-                  {theme === "light" ? (
+            {mounted && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
+                    {theme === "light" ? (
+                      <Sun className="h-4 w-4" />
+                    ) : theme === "dark" ? (
+                      <Moon className="h-4 w-4" />
+                    ) : (
+                      <Laptop className="h-4 w-4" />
+                    )}
+                    <span className="sr-only">Select theme</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="center" className="w-40">
+                  <DropdownMenuLabel>Theme</DropdownMenuLabel>
+
+                  <DropdownMenuItem
+                    onClick={() => setTheme("light")}
+                    className="flex items-center gap-2"
+                  >
                     <Sun className="h-4 w-4" />
-                  ) : theme === "dark" ? (
+                    Light
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem
+                    onClick={() => setTheme("dark")}
+                    className="flex items-center gap-2"
+                  >
                     <Moon className="h-4 w-4" />
-                  ) : (
+                    Dark
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem
+                    onClick={() => setTheme("system")}
+                    className="flex items-center gap-2"
+                  >
                     <Laptop className="h-4 w-4" />
-                  )}
-                  <span className="sr-only">Select theme</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="center" className="w-40">
-                <DropdownMenuLabel>Theme</DropdownMenuLabel>
-
-                <DropdownMenuItem
-                  onClick={() => setTheme("light")}
-                  className="flex items-center gap-2"
-                >
-                  <Sun className="h-4 w-4" />
-                  Light
-                </DropdownMenuItem>
-
-                <DropdownMenuItem
-                  onClick={() => setTheme("dark")}
-                  className="flex items-center gap-2"
-                >
-                  <Moon className="h-4 w-4" />
-                  Dark
-                </DropdownMenuItem>
-
-                <DropdownMenuItem
-                  onClick={() => setTheme("system")}
-                  className="flex items-center gap-2"
-                >
-                  <Laptop className="h-4 w-4" />
-                  System
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                    System
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
 
             {/* Search - only show when authenticated with responsive design */}
             {isAuthenticated && (

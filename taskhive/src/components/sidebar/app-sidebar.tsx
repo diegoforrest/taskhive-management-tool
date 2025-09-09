@@ -17,9 +17,11 @@ import {
   CheckSquare,
   Target,
   LogOut,
+  ClipboardCheck,
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
 
 import {
   Sidebar,
@@ -52,73 +54,97 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { useAuth } from "@/lib/auth-context"
+import { tasksApi } from "@/lib/api"
 
-// Project items with sub-navigation
-const projects = [
-  {
-    name: "Website Redesign",
-    url: "/projects/website-redesign",
-    icon: Target,
-    isActive: true,
-    items: [
-      {
-        title: "Overview",
-        url: "/projects/website-redesign",
-      },
-      {
-        title: "Tasks",
-        url: "/projects/website-redesign/tasks",
-      },
-      {
-        title: "Team",
-        url: "/projects/website-redesign/team",
-      },
-      {
-        title: "Files",
-        url: "/projects/website-redesign/files",
-      },
-    ],
-  },
-  {
-    name: "Mobile App",
-    url: "/projects/mobile-app",
-    icon: Target,
-    items: [
-      {
-        title: "Overview",
-        url: "/projects/mobile-app",
-      },
-      {
-        title: "Tasks",
-        url: "/projects/mobile-app/tasks",
-      },
-      {
-        title: "Team",
-        url: "/projects/mobile-app/team",
-      },
-    ],
-  },
-  {
-    name: "Marketing Campaign",
-    url: "/projects/marketing-campaign",
-    icon: Target,
-    items: [
-      {
-        title: "Overview",
-        url: "/projects/marketing-campaign",
-      },
-      {
-        title: "Tasks",
-        url: "/projects/marketing-campaign/tasks",
-      },
-    ],
-  },
-]
-
+// Helper function to get priority emoji
+const getPriorityEmoji = (priority: "High" | "Medium" | "Low") => {
+  switch (priority) {
+    case "High":
+      return "🔥"
+    case "Medium":
+      return "⚡"
+    case "Low":
+      return "🌱"
+    default:
+      return "🌱"
+  }
+}
 
 export function AppSidebar() {
   const { user, logout, isAuthenticated } = useAuth()
   const router = useRouter()
+  const [userProjects, setUserProjects] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+
+  // Load user's projects from API
+  useEffect(() => {
+    const loadUserProjects = async () => {
+      if (!user?.user_id || !isAuthenticated) {
+        setUserProjects([])
+        return
+      }
+      
+      try {
+        setLoading(true)
+        const [projectsData, tasksData] = await Promise.all([
+          tasksApi.getAllProjects(),
+          tasksApi.getAllTasks()
+        ])
+        
+        // Filter projects for current user and add task counts
+        const userProjectsData = projectsData
+          .filter((project: any) => {
+            // Convert user_id to number for comparison since API returns numbers
+            const userIdNum = parseInt(user.user_id);
+            return project.user_id === userIdNum;
+          })
+          .map((project: any) => {
+            const projectTasks = tasksData.filter((task: any) => task.project_id === project.id)
+            const completedTasks = projectTasks.filter((task: any) => task.status === "Done")
+            
+            // Determine priority based on tasks
+            let priority: "High" | "Medium" | "Low" = "Low"
+            if (projectTasks.some((t: any) => t.priority === "High")) priority = "High"
+            else if (projectTasks.some((t: any) => t.priority === "Medium")) priority = "Medium"
+            
+            return {
+              id: project.id,
+              name: project.name || project.title || `Project ${project.id}`,
+              url: `/dashboard/projects/${project.id}`,
+              icon: Target,
+              priority,
+              taskCount: projectTasks.length,
+              completedCount: completedTasks.length,
+              items: [
+                {
+                  title: "Overview",
+                  url: `/dashboard/projects/${project.id}`,
+                  priority: "High" as const,
+                },
+                {
+                  title: "Tasks",
+                  url: `/dashboard/projects/${project.id}/tasks`,
+                  priority: "Medium" as const,
+                },
+                {
+                  title: "Settings", 
+                  url: `/dashboard/projects/${project.id}/settings`,
+                  priority: "Low" as const,
+                },
+              ],
+            }
+          })
+        
+        setUserProjects(userProjectsData)
+      } catch (error) {
+        console.error('Failed to load user projects:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadUserProjects()
+  }, [user?.user_id, isAuthenticated])
 
   const handleLogout = () => {
     logout()
@@ -129,20 +155,24 @@ export function AppSidebar() {
   const navigationItems = [
     {
       title: "Home",
-      url: isAuthenticated ? "/task" : "/",
+      url: isAuthenticated ? "/dashboard" : "/",
       icon: Home,
     },
     {
-      title: "Projects Board",
-      url: "/task",
+      title: "Projects Dashboard",
+      url: "/dashboard",
       icon: FolderOpen,
-      badge: "12",
+      badge: userProjects.length.toString(),
     },
     {
-      title: "Tasks",
-      url: "/tasks",
+      title: "Tasks Board",
+      url: "/task",
       icon: CheckSquare,
-      badge: "24",
+    },
+    {
+      title: "Review Dashboard",
+      url: "/dashboard/review",
+      icon: ClipboardCheck,
     },
     {
       title: "Team",
@@ -208,87 +238,102 @@ export function AppSidebar() {
           </SidebarMenu>
         </SidebarGroup>
 
-        {/* Projects Section */}
-        <Collapsible defaultOpen className="group/collapsible">
-          <SidebarGroup>
-            <SidebarGroupLabel asChild>
-              <CollapsibleTrigger>
-                Projects
-                <ChevronDown className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-180" />
-              </CollapsibleTrigger>
-            </SidebarGroupLabel>
-            <SidebarGroupAction title="Add Project">
-              <Plus />
-              <span className="sr-only">Add Project</span>
-            </SidebarGroupAction>
-            <CollapsibleContent>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {projects.map((project) => (
-                    <Collapsible key={project.name} asChild defaultOpen={project.isActive}>
+        {/* Projects Section - Only show for authenticated users */}
+        {isAuthenticated && (
+          <Collapsible defaultOpen className="group/collapsible">
+            <SidebarGroup>
+              <SidebarGroupLabel asChild>
+                <CollapsibleTrigger>
+                  Projects ({userProjects.length})
+                  <ChevronDown className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              <SidebarGroupAction asChild>
+                <Link href="/dashboard/projects/new">
+                  <Plus />
+                  <span className="sr-only">Create Project</span>
+                </Link>
+              </SidebarGroupAction>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {loading ? (
                       <SidebarMenuItem>
-                        <SidebarMenuButton asChild tooltip={project.name}>
-                          <Link href={project.url}>
-                            <project.icon />
-                            <span>{project.name}</span>
+                        <SidebarMenuButton disabled>
+                          <span>Loading...</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ) : userProjects.length === 0 ? (
+                      <SidebarMenuItem>
+                        <SidebarMenuButton asChild>
+                          <Link href="/dashboard/projects/new" className="text-muted-foreground">
+                            <Plus />
+                            <span>Create your first project</span>
                           </Link>
                         </SidebarMenuButton>
-                        {project.items?.length ? (
-                          <>
-                            <CollapsibleTrigger asChild>
-                              <SidebarMenuAction className="data-[state=open]:rotate-90">
-                                <ChevronRight />
-                                <span className="sr-only">Toggle</span>
-                              </SidebarMenuAction>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent>
-                              <SidebarMenuSub>
-                                {project.items?.map((subItem) => (
-                                  <SidebarMenuSubItem key={subItem.title}>
-                                    <SidebarMenuSubButton asChild>
-                                      <Link href={subItem.url}>
-                                        <span>{subItem.title}</span>
-                                      </Link>
-                                    </SidebarMenuSubButton>
-                                  </SidebarMenuSubItem>
-                                ))}
-                              </SidebarMenuSub>
-                            </CollapsibleContent>
-                          </>
-                        ) : null}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <SidebarMenuAction showOnHover>
-                              <MoreHorizontal />
-                              <span className="sr-only">More</span>
-                            </SidebarMenuAction>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent
-                            className="w-48 rounded-lg"
-                            side="bottom"
-                            align="end"
-                          >
-                            <DropdownMenuItem>
-                              <Settings className="mr-2 size-4" />
-                              <span>Edit Project</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Users className="mr-2 size-4" />
-                              <span>Manage Team</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="text-red-600">
-                              <span>Delete Project</span>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
                       </SidebarMenuItem>
-                    </Collapsible>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </CollapsibleContent>
-          </SidebarGroup>
-        </Collapsible>
+                    ) : (
+                      userProjects.map((project) => (
+                        <Collapsible key={project.id} asChild>
+                          <SidebarMenuItem>
+                            <div className="flex items-center w-full">
+                              {/* Project Name - Clickable link */}
+                              <SidebarMenuButton asChild tooltip={project.name} className="flex-1">
+                                <Link href={project.url} className="flex items-center">
+                                  <span className="mr-2 text-base">
+                                    {getPriorityEmoji(project.priority)}
+                                  </span>
+                                  <span>{project.name}</span>
+                                </Link>
+                              </SidebarMenuButton>
+                              
+                              {/* Task count badge */}
+                              {project.taskCount > 0 && (
+                                <SidebarMenuBadge>
+                                  {project.completedCount}/{project.taskCount}
+                                </SidebarMenuBadge>
+                              )}
+                              
+                              {/* Dropdown Toggle - Separate clickable area */}
+                              {project.items?.length ? (
+                                <CollapsibleTrigger asChild>
+                                  <SidebarMenuAction className="data-[state=open]:rotate-90 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+                                    <ChevronRight />
+                                    <span className="sr-only">Toggle {project.name} tasks</span>
+                                  </SidebarMenuAction>
+                                </CollapsibleTrigger>
+                              ) : null}
+                            </div>
+                            
+                            {/* Collapsible Content */}
+                            {project.items?.length ? (
+                              <CollapsibleContent>
+                                <SidebarMenuSub>
+                                  {project.items?.map((subItem: any) => (
+                                    <SidebarMenuSubItem key={subItem.title}>
+                                      <SidebarMenuSubButton asChild>
+                                        <Link href={subItem.url} className="flex items-center">
+                                          <span className="mr-2 text-xs">
+                                            {getPriorityEmoji(subItem.priority)}
+                                          </span>
+                                          <span>{subItem.title}</span>
+                                        </Link>
+                                      </SidebarMenuSubButton>
+                                    </SidebarMenuSubItem>
+                                  ))}
+                                </SidebarMenuSub>
+                              </CollapsibleContent>
+                            ) : null}
+                          </SidebarMenuItem>
+                        </Collapsible>
+                      ))
+                    )}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
+        )}
         
        
       </SidebarContent>

@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = 'https://m-backend.dowinnsys.com';
 
 interface ApiResponse<T> {
   data: T;
@@ -28,6 +28,8 @@ interface LoginResponse {
 interface RegisterResponse {
   success: boolean;
   message?: string;
+  user_id?: string;
+  email?: string;
 }
 
 // Task interfaces
@@ -110,34 +112,75 @@ export const authApi = {
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
     try {
       console.log('Sending login request:', credentials);
-      const response = await apiRequest<any>('/testlogin', {
+      const response = await fetch(`${API_BASE_URL}/testlogin`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(credentials),
       });
       
-      console.log('Login API response:', response);
+      console.log('Login response status:', response.status);
       
-      // Handle different possible response formats
-      if (response.success || (response.data && response.data.success)) {
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Login failed with status:', response.status, errorText);
+        return {
+          success: false,
+          message: `Login failed: ${response.status} - ${errorText}`,
+        };
+      }
+      
+      const result = await response.json();
+      console.log('Login API response:', result);
+      
+      // Handle successful response
+      if (result.data) {
+        // Get the numeric user_id from the members table
+        let numericUserId = result.data.user_id;
+        
+        // If API doesn't return numeric user_id, look it up from members table
+        if (!numericUserId || isNaN(parseInt(numericUserId))) {
+          console.log('API did not return numeric user_id, looking up from members...');
+          
+          try {
+            const membersResponse = await fetch(`${API_BASE_URL}/test01/get_all_member`);
+            if (membersResponse.ok) {
+              const membersData = await membersResponse.json();
+              const members = membersData.data || membersData;
+              const userRecord = members.find((member: any) => member.email === credentials.user_id);
+              
+              if (userRecord) {
+                numericUserId = userRecord.id;
+                console.log(`Found numeric user_id: ${numericUserId} for email: ${credentials.user_id}`);
+              }
+            }
+          } catch (error) {
+            console.error('Failed to lookup user_id from members:', error);
+          }
+        }
+        
         return {
           success: true,
           user: {
-            user_id: response.user_id || response.data?.user_id || credentials.user_id,
-            email: response.email || response.data?.email,
+            user_id: numericUserId ? String(numericUserId) : credentials.user_id,
+            email: credentials.user_id,
           },
-          token: response.access_token || response.token,
+          token: result.data.token || result.data.access_token,
+          message: 'Login successful',
         };
       } else {
+        console.error('Login API response missing data field:', result);
         return {
           success: false,
-          message: response.message || response.data?.message || response.error || 'Invalid credentials',
+          message: result.message || 'Login failed - no data returned',
         };
       }
     } catch (error: any) {
       console.error('Login error:', error);
       return {
         success: false,
-        message: error.message || 'Login failed. Please try again.',
+        message: error.message || 'Login failed. Please check your connection.',
       };
     }
   },
@@ -145,30 +188,45 @@ export const authApi = {
   register: async (userData: RegisterRequest): Promise<RegisterResponse> => {
     try {
       console.log('Sending registration request:', userData);
-      const response = await apiRequest<any>('/test01/create_member', {
+      const response = await fetch(`${API_BASE_URL}/test01/create_member`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(userData),
       });
       
-      console.log('Registration API response:', response);
+      console.log('Registration response status:', response.status);
       
-      // Handle different possible response formats
-      if (response.success || (response.data && response.data.success)) {
-        return {
-          success: true,
-          message: response.message || response.data?.message || 'Account created successfully',
-        };
-      } else {
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Registration failed with status:', response.status, errorText);
         return {
           success: false,
-          message: response.message || response.data?.message || response.error || 'Registration failed',
+          message: `Registration failed: ${response.status} - ${errorText}`,
         };
       }
+      
+      const result = await response.json();
+      console.log('Registration API response:', result);
+      
+      // Extract the numeric user ID from the registration response
+      let numericUserId = result.data?.id || result.id;
+      
+      console.log('Extracted user ID from registration:', numericUserId);
+      
+      // Handle successful response
+      return {
+        success: true,
+        message: result.message || 'Account created successfully',
+        user_id: numericUserId ? String(numericUserId) : undefined,
+        email: userData.email
+      };
     } catch (error: any) {
       console.error('Registration error:', error);
       return {
         success: false,
-        message: error.message || 'Registration failed. Please try again.',
+        message: error.message || 'Registration failed. Please check your connection.',
       };
     }
   },
@@ -187,13 +245,24 @@ export const tasksApi = {
     }
   },
 
-  // Get all tasks
-  getAllTasks: async (): Promise<Task[]> => {
+  // Get all tasks from the real API
+  getAllTasks: async (): Promise<any[]> => {
     try {
-      const response = await apiRequest<Task[]>('/tasks');
-      return response;
+      const response = await fetch(`${API_BASE_URL}/test03/get_all_task`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data.data || [];
     } catch (error) {
-      console.error('Failed to fetch tasks:', error);
+      console.error('Failed to get all tasks:', error);
       throw error;
     }
   },
@@ -226,16 +295,107 @@ export const tasksApi = {
     }
   },
 
-  // Update task status
-  updateTaskStatus: async (id: number, status: string): Promise<Task> => {
+  // Update task status using the real API
+  updateTaskStatus: async (taskId: number, status: string): Promise<any> => {
     try {
-      const response = await apiRequest<Task>(`/tasks/${id}/status`, {
+      const response = await fetch(`${API_BASE_URL}/test03/patch_task`, {
         method: 'PATCH',
-        body: JSON.stringify({ status }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          task_id: taskId,
+          status: status,
+          name: "Updated via review", // Required field
+          contents: "Updated via review system" // Required field
+        }),
       });
-      return response;
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
     } catch (error) {
       console.error('Failed to update task status:', error);
+      throw error;
+    }
+  },
+
+  // Get all projects from the real API
+  getAllProjects: async (): Promise<any[]> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/test02/get_all_project`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data.data || [];
+    } catch (error) {
+      console.error('Failed to get all projects:', error);
+      throw error;
+    }
+  },
+
+  // Create a new project
+  createProject: async (projectData: {
+    name: string;
+    description?: string;
+    user_id: number; // Changed to number to match API
+    due_date?: string;
+    priority?: string;
+  }): Promise<any> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/test02/create_project`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(projectData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Failed to create project:', error);
+      throw error;
+    }
+  },
+
+  // Create changelog entry
+  createChangelog: async (taskId: number, oldStatus: string, newStatus: string, remark: string): Promise<any> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/test04/create_changelog`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          task_id: taskId,
+          old_status: oldStatus,
+          new_status: newStatus,
+          remark: remark
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Failed to create changelog:', error);
       throw error;
     }
   },

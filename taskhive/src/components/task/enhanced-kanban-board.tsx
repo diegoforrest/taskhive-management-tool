@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { Plus, MoreHorizontal, Calendar, Edit3, Trash2, X, GripVertical } from 'lucide-react';
+import { Plus, MoreHorizontal, Calendar, Edit3, Trash2, X, GripVertical, ArrowLeft } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
+import Link from "next/link";
 import { tasksApi, Task, CreateTaskRequest, TasksByStatus } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useSearch } from "@/lib/search-context";
@@ -18,6 +20,15 @@ import { useSearch } from "@/lib/search-context";
 type ItemType = 'project' | 'task';
 type ItemStatus = 'Todo' | 'In Progress' | 'Completed';
 type Priority = 'High' | 'Medium' | 'Low';
+
+interface ProjectInfo {
+  title: string;
+  description?: string;
+}
+
+interface EnhancedKanbanBoardProps {
+  project?: ProjectInfo;
+}
 
 interface Column {
   id: ItemStatus;
@@ -58,7 +69,7 @@ const typeConfig: Record<ItemType, { label: string; color: string }> = {
   'task': { label: 'TASK', color: 'bg-blue-100 text-blue-800' }
 };
 
-export default function EnhancedKanbanBoard() {
+export default function EnhancedKanbanBoard({ project }: EnhancedKanbanBoardProps = {}) {
   const { user, isAuthenticated } = useAuth();
   const { highlightedTaskId } = useSearch();
   const [tasks, setTasks] = useState<TasksByStatus>({
@@ -299,9 +310,11 @@ export default function EnhancedKanbanBoard() {
     <div className="space-y-4 sm:space-y-6 p-2 sm:p-4 lg:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Project Board</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            Drag and drop items between columns to change their status
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+            {project?.title || 'Project Board'}
+          </h1>
+          <p className="text-muted-foreground text-sm sm:text-base line-clamp-1">
+            {project?.description || 'Drag and drop items between columns to change their status'}
           </p>
         </div>
         <Button onClick={() => setShowNewItemForm('Todo')} className="w-full sm:w-auto">
@@ -437,6 +450,8 @@ interface TaskCardProps {
 }
 
 const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, onDragStart, onDragEnd, onMove }: TaskCardProps) => {
+  const [isMouseInDescription, setIsMouseInDescription] = React.useState(false);
+  
   const getStatusOptions = () => {
     const currentStatus = item.status;
     const options = [];
@@ -451,10 +466,18 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
   return (
     <div
       data-item-id={item.id}
-      draggable
-      onDragStart={(e) => onDragStart(e, item)}
+      draggable={!isMouseInDescription}
+      onDragStart={(e) => {
+        if (isMouseInDescription) {
+          e.preventDefault();
+          return;
+        }
+        onDragStart(e, item);
+      }}
       onDragEnd={onDragEnd}
-      className={`mb-2 sm:mb-3 p-3 sm:p-4 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing group select-none ${
+      className={`mb-2 sm:mb-3 p-3 sm:p-4 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-all duration-200 ${
+        isMouseInDescription ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+      } group select-none ${
         isDragging ? 'opacity-50 scale-105' : 'hover:scale-[1.01]'
       } ${
         isHighlighted ? 'ring-2 ring-blue-500 ring-offset-2 bg-blue-50 animate-pulse' : ''
@@ -517,7 +540,91 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
       <h3 className="font-semibold text-sm mb-2 line-clamp-2">{item.title}</h3>
       
       {item.description && (
-        <p className="text-muted-foreground text-xs mb-3 line-clamp-2">{item.description}</p>
+        <Dialog>
+          <DialogTrigger asChild>
+            <div 
+              className="p-2 bg-gray-50 dark:bg-gray-800 rounded-md mb-3 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+              onMouseEnter={() => setIsMouseInDescription(true)}
+              onMouseLeave={() => setIsMouseInDescription(false)}
+              onMouseDown={(e) => e.stopPropagation()}
+              onDragStart={(e) => e.preventDefault()}
+              onDrop={(e) => e.preventDefault()}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div 
+                className="text-muted-foreground text-xs line-clamp-3 break-words select-text"
+                dangerouslySetInnerHTML={{
+                  __html: item.description.replace(
+                    /(https?:\/\/[^\s]+)/g,
+                    '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:text-blue-700 underline">$1</a>'
+                  )
+                }}
+              />
+            </div>
+          </DialogTrigger>
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden">
+            <DialogHeader className="pb-4 border-b">
+              <div className="flex items-start gap-3 mb-3">
+                <Badge className={`${typeConfig[item.type].color} text-xs`}>
+                  {typeConfig[item.type].label}
+                </Badge>
+                <Badge variant={priorityConfig[item.priority].color as any} className="text-xs">
+                  {priorityConfig[item.priority].icon} {item.priority}
+                </Badge>
+              </div>
+              <DialogTitle className="text-xl font-bold text-left leading-tight pr-8">
+                {item.title}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="overflow-y-auto max-h-[60vh] py-4">
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center gap-2">
+                    📄 Description
+                  </h4>
+                  <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border">
+                    <div 
+                      className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap break-words"
+                      dangerouslySetInnerHTML={{
+                        __html: item.description.replace(
+                          /(https?:\/\/[^\s]+)/g,
+                          '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:text-blue-700 underline font-medium">$1</a>'
+                        )
+                      }}
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                  <div>
+                    <h5 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                      Due Date
+                    </h5>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm font-medium">
+                        {item.dueDate ? new Date(item.dueDate).toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'short', 
+                          day: 'numeric' 
+                        }) : 'Not set'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h5 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                      Current Status
+                    </h5>
+                    <Badge variant="secondary" className="text-sm">
+                      {item.status}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {item.type === 'project' && typeof item.progress === 'number' && (
@@ -589,39 +696,25 @@ const NewItemForm = ({ columnId, onCancel, onAdd }: NewItemFormProps) => {
   return (
     <div className="mb-2 sm:mb-3 p-3 sm:p-4 bg-white border-2 border-dashed border-gray-300 rounded-lg">
       <div className="space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {/* Priority at very top left */}
+        <div className="w-full sm:w-1/3">
           <Select 
-            value={formData.type} 
-            onValueChange={(value: any) => setFormData(prev => ({...prev, type: value}))}
+            value={formData.priority} 
+            onValueChange={(value: any) => setFormData(prev => ({...prev, priority: value}))}
           >
             <SelectTrigger className="text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="task">Task</SelectItem>
-              <SelectItem value="project">Project</SelectItem>
+              <SelectItem value="Low">Low Priority</SelectItem>
+              <SelectItem value="Medium">Medium Priority</SelectItem>
+              <SelectItem value="High">High Priority</SelectItem>
             </SelectContent>
           </Select>
-          
-          <div className="flex justify-end">
-            <Select 
-              value={formData.priority} 
-              onValueChange={(value: any) => setFormData(prev => ({...prev, priority: value}))}
-            >
-              <SelectTrigger className="text-sm w-full sm:w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Low">Low Priority</SelectItem>
-                <SelectItem value="Medium">Medium Priority</SelectItem>
-                <SelectItem value="High">High Priority</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
         </div>
-
+        
         <Input
-          placeholder={`${formData.type === 'project' ? 'Project' : 'Task'} title`}
+          placeholder="Task title"
           value={formData.title}
           onChange={(e) => setFormData(prev => ({...prev, title: e.target.value}))}
           autoFocus
@@ -635,12 +728,14 @@ const NewItemForm = ({ columnId, onCancel, onAdd }: NewItemFormProps) => {
           className="min-h-[60px] text-sm resize-none"
         />
         
+        {/* Due Date and Assignee Row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <Input
             type="date"
             value={formData.dueDate}
             onChange={(e) => setFormData(prev => ({...prev, dueDate: e.target.value}))}
             className="text-sm"
+            placeholder="Due date"
           />
           
           <Input
@@ -669,7 +764,7 @@ const NewItemForm = ({ columnId, onCancel, onAdd }: NewItemFormProps) => {
         
         <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
           <Button onClick={handleSubmit} className="flex-1 text-sm">
-            Add {formData.type === 'project' ? 'Project' : 'Task'}
+            Add Task
           </Button>
           <Button variant="outline" onClick={onCancel} className="flex-1 text-sm">
             Cancel
@@ -696,12 +791,10 @@ const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
     onClose();
   };
 
-  // Prevent body scroll when modal is open on mobile
+  // Prevent body scroll when modal is open
   useEffect(() => {
-    if (window.innerWidth < 640) {
-      document.body.style.overflow = 'hidden';
-      document.documentElement.style.overflow = 'hidden';
-    }
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
     
     return () => {
       // Clean up on unmount
@@ -710,31 +803,44 @@ const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
     };
   }, []);
 
+  // Auto-resize textarea on initial load
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const textarea = document.querySelector('textarea[placeholder*="description"]') as HTMLTextAreaElement;
+      if (textarea && editedItem.description) {
+        textarea.style.height = 'auto';
+        textarea.style.height = `${Math.max(60, textarea.scrollHeight)}px`;
+      }
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [editedItem.description]);
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4 touch-none">
-      <Card className="max-w-lg w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden">
-        <div className="flex flex-col h-full max-h-[95vh] sm:max-h-[90vh]">
-          <CardHeader className="pb-2 sm:pb-4 flex-shrink-0">
-            <div className="flex justify-between items-start">
-              <div className="flex-1 mr-2">
-                <CardTitle className="text-base sm:text-xl mb-1 sm:mb-2">Edit {item.type === 'project' ? 'Project' : 'Task'}</CardTitle>
-                <div className="flex items-center space-x-1 sm:space-x-2">
-                  <Badge className={`text-xs font-bold ${typeConfig[editedItem.type].color}`}>
-                    {typeConfig[editedItem.type].label}
-                  </Badge>
-                  <Badge variant={priorityConfig[editedItem.priority].color as any} className="text-xs">
-                    {priorityConfig[editedItem.priority].icon} {editedItem.priority}
-                  </Badge>
-                </div>
+      <Card className="max-w-lg w-full max-h-[95vh] sm:max-h-[90vh] flex flex-col">
+        {/* Header - Fixed */}
+        <CardHeader className="pb-2 sm:pb-4 flex-shrink-0 border-b">
+          <div className="flex justify-between items-start">
+            <div className="flex-1 mr-2">
+              <CardTitle className="text-base sm:text-xl mb-1 sm:mb-2">Edit {item.type === 'project' ? 'Project' : 'Task'}</CardTitle>
+              <div className="flex items-center space-x-1 sm:space-x-2">
+                <Badge className={`text-xs font-bold ${typeConfig[editedItem.type].color}`}>
+                  {typeConfig[editedItem.type].label}
+                </Badge>
+                <Badge variant={priorityConfig[editedItem.priority].color as any} className="text-xs">
+                  {priorityConfig[editedItem.priority].icon} {editedItem.priority}
+                </Badge>
               </div>
-              <Button variant="ghost" size="sm" onClick={onClose} className="flex-shrink-0">
-                <X className="h-4 w-4" />
-              </Button>
             </div>
-          </CardHeader>
-          
-          <div className="flex-1 overflow-y-auto overscroll-contain">
-            <CardContent className="space-y-3 sm:space-y-6">
+            <Button variant="ghost" size="sm" onClick={onClose} className="flex-shrink-0">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto">
+          <CardContent className="space-y-3 sm:space-y-6 p-6">
           <div className="space-y-2">
             <label className="text-xs sm:text-sm font-medium">Title</label>
             <Input
@@ -749,85 +855,65 @@ const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
             <label className="text-xs sm:text-sm font-medium">Description</label>
             <Textarea
               value={editedItem.description || ''}
-              onChange={(e) => setEditedItem({...editedItem, description: e.target.value})}
-              placeholder={`${item.type === 'project' ? 'Project' : 'Task'} description`}
-              className="min-h-[60px] sm:min-h-[100px] resize-none text-sm"
+              onChange={(e) => {
+                setEditedItem({...editedItem, description: e.target.value});
+                // Auto-resize textarea
+                const textarea = e.target as HTMLTextAreaElement;
+                textarea.style.height = 'auto';
+                textarea.style.height = `${Math.max(60, textarea.scrollHeight)}px`;
+              }}
+              onDragStart={(e) => e.preventDefault()}
+              onDrop={(e) => e.preventDefault()}
+              placeholder={`${item.type === 'project' ? 'Project' : 'Task'} description (supports links)`}
+              className="min-h-[60px] text-sm resize-none overflow-hidden"
+              style={{ 
+                height: editedItem.description ? 'auto' : '60px',
+                minHeight: '60px'
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseMove={(e) => e.stopPropagation()}
             />
           </div>
           
-          {/* Mobile: Stack all fields, Desktop: Inline type/status and date/priority */}
+          {/* Due Date, Priority, and Status inline - Equal size */}
           <div className="space-y-3">
-            {/* Type and Status inline */}
-            <div className="grid grid-cols-2 gap-2 sm:gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-600">Type</label>
-                <Select value={editedItem.type} onValueChange={(value: any) => setEditedItem({...editedItem, type: value})}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="task">Task</SelectItem>
-                    <SelectItem value="project">Project</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-600">Status</label>
-                <Select value={editedItem.status} onValueChange={(value: any) => setEditedItem({...editedItem, status: value})}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Todo">Todo</SelectItem>
-                    <SelectItem value="In Progress">In Progress</SelectItem>
-                    <SelectItem value="Completed">Completed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            
-            {/* Due Date and Priority inline */}
-            <div className="grid grid-cols-2 gap-2 sm:gap-3">
-              <div className="space-y-1">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+              <div className="space-y-1 flex-1">
                 <label className="text-xs font-medium text-gray-600">Due Date</label>
                 <Input
                   type="date"
                   value={editedItem.dueDate || ''}
                   onChange={(e) => setEditedItem({...editedItem, dueDate: e.target.value})}
-                  className="h-9 text-sm"
+                  className="h-9 text-sm w-full"
                 />
               </div>
               
-              <div className="space-y-1">
+              <div className="space-y-1 flex-1">
                 <label className="text-xs font-medium text-gray-600">Priority</label>
-                <div className="flex justify-end">
-                  <Select value={editedItem.priority} onValueChange={(value: any) => setEditedItem({...editedItem, priority: value})}>
-                    <SelectTrigger className="h-9 text-sm w-40">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Low">
-                        <div className="flex items-center space-x-2">
-                          <span>📝</span>
-                          <span>Low</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="Medium">
-                        <div className="flex items-center space-x-2">
-                          <span>⚡</span>
-                          <span>Medium</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="High">
-                        <div className="flex items-center space-x-2">
-                          <span>🔥</span>
-                          <span>High</span>
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Select value={editedItem.priority} onValueChange={(value: any) => setEditedItem({...editedItem, priority: value})}>
+                  <SelectTrigger className="h-9 text-sm w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent position="popper" side="bottom" align="start" sideOffset={4} avoidCollisions={false}>
+                    <SelectItem value="Low">Low Priority</SelectItem>
+                    <SelectItem value="Medium">Medium Priority</SelectItem>
+                    <SelectItem value="High">High Priority</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1 flex-1">
+                <label className="text-xs font-medium text-gray-600">Status</label>
+                <Select value={editedItem.status} onValueChange={(value: any) => setEditedItem({...editedItem, status: value})}>
+                  <SelectTrigger className="h-9 text-sm w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent position="popper" side="bottom" align="start" sideOffset={4} avoidCollisions={false}>
+                    <SelectItem value="Todo">Todo</SelectItem>
+                    <SelectItem value="In Progress">In Progress</SelectItem>
+                    <SelectItem value="Completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             
@@ -867,8 +953,12 @@ const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
               </div>
             </div>
           )}
-          
-          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 pt-4 sm:pt-6 border-t">
+          </CardContent>
+        </div>
+        
+        {/* Fixed Bottom Action Bar */}
+        <div className="flex-shrink-0 border-t bg-white dark:bg-gray-800 p-4">
+          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
             <Button 
               onClick={saveItem} 
               className="flex-1 text-sm"
@@ -882,8 +972,6 @@ const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
             >
               Delete
             </Button>
-          </div>
-            </CardContent>
           </div>
         </div>
       </Card>
