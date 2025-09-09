@@ -12,38 +12,58 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ArrowLeft, Calendar, Settings, Trash2, Archive } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { authApi } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 export default function EditProjectPage() {
   const params = useParams();
   const router = useRouter();
+  const { user } = useAuth();
   const projectId = params.id as string;
   
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [formData, setFormData] = useState({
-    title: "",
+    name: "",
     description: "",
     priority: "Medium" as "High" | "Medium" | "Low",
-    dueDate: "",
-    status: "Planning" as string,
-    team: [] as string[],
+    due_date: "",
+    status: "In Progress" as string,
   });
 
   // Mock data loading - replace with actual API call
   useEffect(() => {
     const loadProject = async () => {
-      // TODO: Replace with actual API call
-      const mockProject = {
-        title: `Project ${projectId}`,
-        description: "This is a detailed description of the project and its objectives.",
-        priority: "High" as const,
-        dueDate: "2025-09-10",
-        status: "In Progress",
-        team: [],
-      };
-      
-      setFormData(mockProject);
+      if (!projectId || !user) return;
+
+      setIsLoading(true);
+      try {
+        const response = await authApi.getProject(parseInt(projectId), user.user_id);
+        if (response.success && response.data) {
+          const project = response.data;
+          setFormData({
+            name: project.name || '',
+            description: project.description || '',
+            priority: project.priority || 'Medium',
+            due_date: project.due_date ? project.due_date.split('T')[0] : '', // Format date for input
+            status: project.status || 'In Progress',
+          });
+        }
+      } catch (error) {
+        console.error('Error loading project:', error);
+        // Keep mock data as fallback
+        const mockProject = {
+          name: `Project ${projectId}`,
+          description: "This is a detailed description of the project and its objectives.",
+          priority: "High" as const,
+          due_date: "2025-09-10",
+          status: "In Progress",
+        };
+        setFormData(mockProject);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     loadProject();
@@ -51,37 +71,59 @@ export default function EditProjectPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user || !projectId) return;
+
     setIsLoading(true);
 
     try {
-      // TODO: Replace with actual API call
-      console.log("Updating project:", projectId, formData);
+      const updateData = {
+        name: formData.name,
+        description: formData.description,
+        priority: formData.priority,
+        due_date: formData.due_date,
+        status: formData.status,
+      };
+
+      const response = await authApi.updateProject(parseInt(projectId), updateData);
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Redirect to project page after successful update
-      router.push(`/dashboard/projects/${projectId}`);
+      if (response.success) {
+        // Trigger sidebar refresh
+        window.dispatchEvent(new Event('projectUpdated'));
+        
+        // Redirect to project page after successful update
+        router.push(`/dashboard/projects/${projectId}`);
+      } else {
+        throw new Error(response.message || 'Failed to update project');
+      }
     } catch (error) {
       console.error("Error updating project:", error);
+      // Could add error state here if needed
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleDelete = async () => {
+    if (!user || !projectId) return;
+    
     setIsDeleting(true);
     try {
-      // TODO: Replace with actual API call
       console.log("Deleting project:", projectId);
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await authApi.deleteProject(parseInt(projectId));
       
-      // Redirect to dashboard after deletion
-      router.push("/dashboard");
+      if (response.success) {
+        console.log("Project deleted successfully");
+        // Trigger sidebar refresh
+        window.dispatchEvent(new Event('projectUpdated'));
+        // Redirect to dashboard after deletion
+        router.push("/dashboard");
+      } else {
+        throw new Error(response.message || 'Failed to delete project');
+      }
     } catch (error) {
       console.error("Error deleting project:", error);
+      // You might want to show an error message to the user here
     } finally {
       setIsDeleting(false);
       setShowDeleteDialog(false);
@@ -131,8 +173,8 @@ export default function EditProjectPage() {
                   <Input
                     id="title"
                     placeholder="Enter project title"
-                    value={formData.title}
-                    onChange={(e) => handleInputChange("title", e.target.value)}
+                    value={formData.name}
+                    onChange={(e) => handleInputChange("name", e.target.value)}
                     required
                   />
                 </div>
@@ -175,8 +217,8 @@ export default function EditProjectPage() {
                       id="dueDate"
                       type="date"
                       className="w-full"
-                      value={formData.dueDate}
-                      onChange={(e) => handleInputChange("dueDate", e.target.value)}
+                      value={formData.due_date}
+                      onChange={(e) => handleInputChange("due_date", e.target.value)}
                     />
                   </div>
 
@@ -187,12 +229,9 @@ export default function EditProjectPage() {
                         <SelectValue placeholder="Select project status" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Planning">📋 Planning</SelectItem>
                         <SelectItem value="In Progress">🚀 In Progress</SelectItem>
-                        <SelectItem value="On Hold">⏸️ On Hold</SelectItem>
-                        <SelectItem value="Review">👀 Review</SelectItem>
+                        <SelectItem value="To Review">👀 To Review</SelectItem>
                         <SelectItem value="Completed">✅ Completed</SelectItem>
-                        <SelectItem value="Archived">📦 Archived</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -205,7 +244,7 @@ export default function EditProjectPage() {
                   </Button>
                   <Button 
                     onClick={handleSubmit} 
-                    disabled={isLoading || !formData.title}
+                    disabled={isLoading || !formData.name}
                   >
                     {isLoading ? "Saving..." : "Save Changes"}
                   </Button>

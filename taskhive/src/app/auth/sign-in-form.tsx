@@ -103,10 +103,12 @@ export function SignInForm() {
           localStorage.removeItem('rememberMe')
         }
 
-        // Store user in context with numeric user_id
+        // Store user in context with all data from backend response
         const userData = {
           user_id: response.user.user_id, // This should be the numeric ID from backend
-          email: formData.email
+          email: response.user.email || formData.email,
+          firstName: response.user.firstName,
+          lastName: response.user.lastName
         };
         
         console.log('Storing user data in context:', userData);

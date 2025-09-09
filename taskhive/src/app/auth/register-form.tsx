@@ -70,17 +70,14 @@ export function RegisterForm() {
     }
 
     try {
-      // Generate user_id from first and last name (backend will return numeric ID)
-      const user_id = `${formData.firstName.toLowerCase()}.${formData.lastName.toLowerCase()}`.replace(/\s+/g, '.')
-      
       console.log('=== REGISTRATION ATTEMPT ===');
-      console.log('Generated user_id:', user_id);
       console.log('Email:', formData.email);
       
       const response = await authApi.register({
-        user_id,
         email: formData.email,
-        password: formData.password
+        password: formData.password,
+        firstName: formData.firstName,
+        lastName: formData.lastName
       })
       
       console.log('Registration response:', response);

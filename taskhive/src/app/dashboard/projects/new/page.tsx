@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Calendar, Users, Target } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { tasksApi } from "@/lib/api";
+import { authApi } from "@/lib/api";
 
 export default function NewProjectPage() {
   const { user } = useAuth();
@@ -69,11 +69,11 @@ export default function NewProjectPage() {
 
     try {
       const projectData = {
+        user_id: numericUserId,
         name: formData.name.trim(),
-        description: formData.description.trim(),
-        user_id: numericUserId, // This is now guaranteed to be a valid number
+        description: formData.description.trim() || undefined,
         priority: formData.priority,
-        due_date: formData.due_date || undefined
+        due_date: formData.due_date || undefined,
       };
 
       console.log("=== PROJECT CREATION DEBUG ===");
@@ -82,53 +82,18 @@ export default function NewProjectPage() {
       console.log("Creating project with data:", projectData);
       console.log("Final user_id being sent:", projectData.user_id);
       console.log("user_id type:", typeof projectData.user_id);
-      console.log("Request body JSON:", JSON.stringify(projectData));
       
-      // Try direct API call with better error handling
-      console.log("Making API request to:", `https://m-backend.dowinnsys.com/test02/create_project`);
-      const response = await fetch(`https://m-backend.dowinnsys.com/test02/create_project`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(projectData)
-      });
+      const result = await authApi.createProject(projectData);
       
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.log('Error response body:', errorText);
-        
-        try {
-          const errorJson = JSON.parse(errorText);
-          console.log('Parsed error JSON:', errorJson);
-          throw new Error(`API Error: ${errorJson.message || errorJson.error || errorText}`);
-        } catch (parseError) {
-          throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
-        }
-      }
-      
-      const result = await response.json();
       console.log("=== API RESPONSE ===");
       console.log("Full API response:", result);
-      console.log("Response type:", typeof result);
-      console.log("Response keys:", Object.keys(result));
       
-      // Try to extract project info from different possible response formats
-      let projectId = result.data?.id || result.id || result.project_id || 'unknown';
-      let userId = result.data?.user_id || result.user_id || 'unknown';
+      // Dispatch custom event to trigger sidebar refresh
+      window.dispatchEvent(new CustomEvent('projectCreated', { detail: result }));
       
-      // Log what we found
-      console.log("Extracted project ID:", projectId);
-      console.log("Extracted user ID:", userId);
+      alert(`Project created successfully!`);
       
-      // Show success message with better info
-      const successMsg = `Project created successfully!\nAPI Response: ${JSON.stringify(result, null, 2)}`;
-      alert(successMsg);
-      
-      // Small delay to ensure the project is saved
+      // Small delay to ensure the project is saved and sidebar refreshes
       setTimeout(() => {
         router.push("/dashboard");
       }, 500);

@@ -5,8 +5,8 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronDown, List, Plus, Clock, AlertCircle, PlayCircle, CheckCircle } from "lucide-react";
-import { tasksApi } from "@/lib/api";
+import { ChevronDown, List, Plus, Clock, AlertCircle, PlayCircle, CheckCircle, Calendar } from "lucide-react";
+import { tasksApi, authApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 export default function DashboardHome() {
@@ -84,52 +84,30 @@ export default function DashboardHome() {
     try {
       setLoading(true);
       
-      // Load projects and tasks from API
-      const [projectsData, tasksData] = await Promise.all([
-        tasksApi.getAllProjects(),
+      // Load projects from real API and tasks from mock (for now)
+      const [projectsResponse, tasksData] = await Promise.all([
+        authApi.getProjects(typeof user.user_id === 'number' ? user.user_id : parseInt(user.user_id)),
         tasksApi.getAllTasks()
       ]);
       
       console.log('Current user ID:', user.user_id);
       console.log('Current user ID type:', typeof user.user_id);
       console.log('Current user email:', user.email);
-      console.log('All projects from API:', projectsData);
+      console.log('Projects API response:', projectsResponse);
+      
+      // Extract projects from the response
+      const projectsData = projectsResponse.data || [];
+      console.log('Projects data:', projectsData);
       console.log('Total projects found:', projectsData.length);
       
-      // Convert user_id to number for comparison since API returns numbers
-      const userIdNum = parseInt(user.user_id);
-      console.log('Converted user ID to number:', userIdNum);
+      // Map projects and add tasks (mock tasks for now since we don't have task endpoints yet)
+      const userProjects = projectsData.map((project: any) => ({
+        ...project,
+        tasks: tasksData.filter((task: any) => task.project_id === project.id) || []
+      }));
       
-      // Check user_id types in projects
-      projectsData.forEach((project: any, index: number) => {
-        console.log(`Project ${index}:`, {
-          id: project.id,
-          name: project.name || project.title,
-          user_id: project.user_id,
-          user_id_type: typeof project.user_id,
-          matches_string: project.user_id === user.user_id,
-          matches_number: project.user_id === userIdNum
-        });
-      });
-      
-      // Filter projects for current user ONLY (convert string user_id to number)
-      const userProjects = projectsData
-        .filter((project: any) => {
-          const matches = project.user_id === userIdNum;
-          console.log(`Filtering project ${project.id}: user_id=${project.user_id} (${typeof project.user_id}) === ${userIdNum} (${typeof userIdNum}) -> ${matches}`);
-          return matches;
-        })
-        .map((project: any) => ({
-          ...project,
-          tasks: tasksData.filter((task: any) => task.project_id === project.id)
-        }));
-      
-      console.log('Filtered user projects:', userProjects);
+      console.log('Final user projects:', userProjects);
       console.log('Number of user projects found:', userProjects.length);
-      
-      // Also check if there are any projects with user_id 86 specifically
-      const projectsWithUserId86 = projectsData.filter((p: any) => p.user_id === 86);
-      console.log('Projects with user_id 86:', projectsWithUserId86);
       
       setProjects(userProjects);
       setTasks(tasksData.filter((task: any) => {
@@ -139,6 +117,34 @@ export default function DashboardHome() {
       }));
     } catch (error) {
       console.error('Failed to load data:', error);
+      
+      // Fallback to mock data if API fails
+      try {
+        console.log('Falling back to mock data...');
+        const [projectsData, tasksData] = await Promise.all([
+          tasksApi.getAllProjects(),
+          tasksApi.getAllTasks()
+        ]);
+        
+        // Convert user_id to number for comparison since API returns numbers
+        const userIdNum = typeof user.user_id === 'number' ? user.user_id : parseInt(user.user_id);
+        
+        // Filter projects for current user
+        const userProjects = projectsData
+          .filter((project: any) => project.user_id === userIdNum)
+          .map((project: any) => ({
+            ...project,
+            tasks: tasksData.filter((task: any) => task.project_id === project.id)
+          }));
+        
+        setProjects(userProjects);
+        setTasks(tasksData.filter((task: any) => {
+          const userProjectIds = userProjects.map((p: any) => p.id);
+          return userProjectIds.includes(task.project_id);
+        }));
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError);
+      }
     } finally {
       setLoading(false);
     }
@@ -285,7 +291,26 @@ export default function DashboardHome() {
               <div key={project.id} className="bg-white dark:bg-gray-900 rounded-lg shadow p-5 flex flex-col gap-2 border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-primary/20 transition-all duration-200">
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Due: {project.due}</span>
+                    {project.due_date ? (
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(project.due_date).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                        </span>
+                        {/* Overdue indicator */}
+                        {new Date(project.due_date) < new Date() && project.status !== "Completed" && (
+                          <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-medium">
+                            Overdue
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">No due date</span>
+                    )}
                     <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
                       project.priority === 'High' ? 'bg-red-100 text-red-700' : 
                       project.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 

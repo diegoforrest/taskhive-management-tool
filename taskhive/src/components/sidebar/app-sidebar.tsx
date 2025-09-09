@@ -54,7 +54,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { useAuth } from "@/lib/auth-context"
-import { tasksApi } from "@/lib/api"
+import { authApi, tasksApi } from "@/lib/api"
 
 // Helper function to get priority emoji
 const getPriorityEmoji = (priority: "High" | "Medium" | "Low") => {
@@ -74,76 +74,164 @@ export function AppSidebar() {
   const { user, logout, isAuthenticated } = useAuth()
   const router = useRouter()
   const [userProjects, setUserProjects] = useState<any[]>([])
+  const [projectTasks, setProjectTasks] = useState<{[key: number]: any[]}>({})
   const [loading, setLoading] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  // Load user's projects from API
+  // Get user display name
+  const getUserDisplayName = () => {
+    if (!user) return 'Guest'
+    
+    // Use firstName and lastName if available
+    if (user.firstName && user.lastName) {
+      const firstName = user.firstName.trim().charAt(0).toUpperCase() + user.firstName.trim().slice(1).toLowerCase()
+      const lastName = user.lastName.trim().charAt(0).toUpperCase() + user.lastName.trim().slice(1).toLowerCase()
+      return `${firstName} ${lastName}`
+    }
+    
+    // Use firstName only if available
+    if (user.firstName) {
+      return user.firstName.trim().charAt(0).toUpperCase() + user.firstName.trim().slice(1).toLowerCase()
+    }
+    
+    // Use email if no name available
+    if (user.email) {
+      return user.email.split('@')[0]
+    }
+    
+    // Fallback to user_id
+    return `User ${user.user_id}`
+  }
+
+  // Get user initials for avatar fallback
+  const getUserInitials = () => {
+    if (!user) return 'G'
+    
+    // Use firstName and lastName if available
+    if (user.firstName && user.lastName) {
+      return (user.firstName[0] + user.lastName[0]).toUpperCase()
+    }
+    
+    // Use email if firstName/lastName not available
+    if (user.email) {
+      const parts = user.email.split('@')[0].split('.')
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase()
+      }
+      return user.email.substring(0, 2).toUpperCase()
+    }
+    
+    // Fallback to user_id
+    return user.user_id.toString().substring(0, 2).toUpperCase() || 'U'
+  }
+
+  // Load user's projects from API (same as dashboard)
   useEffect(() => {
     const loadUserProjects = async () => {
       if (!user?.user_id || !isAuthenticated) {
         setUserProjects([])
+        setProjectTasks({})
         return
       }
       
       try {
         setLoading(true)
-        const [projectsData, tasksData] = await Promise.all([
-          tasksApi.getAllProjects(),
+        console.log('🔍 Sidebar loading projects for user_id:', user.user_id, 'type:', typeof user.user_id)
+        
+        // Use the same approach as dashboard
+        const [projectsResponse, allTasks] = await Promise.all([
+          authApi.getProjects(typeof user.user_id === 'number' ? user.user_id : parseInt(user.user_id)),
           tasksApi.getAllTasks()
-        ])
+        ]);
         
-        // Filter projects for current user and add task counts
-        const userProjectsData = projectsData
-          .filter((project: any) => {
-            // Convert user_id to number for comparison since API returns numbers
-            const userIdNum = parseInt(user.user_id);
-            return project.user_id === userIdNum;
-          })
-          .map((project: any) => {
-            const projectTasks = tasksData.filter((task: any) => task.project_id === project.id)
-            const completedTasks = projectTasks.filter((task: any) => task.status === "Done")
-            
-            // Determine priority based on tasks
-            let priority: "High" | "Medium" | "Low" = "Low"
-            if (projectTasks.some((t: any) => t.priority === "High")) priority = "High"
-            else if (projectTasks.some((t: any) => t.priority === "Medium")) priority = "Medium"
-            
-            return {
-              id: project.id,
-              name: project.name || project.title || `Project ${project.id}`,
-              url: `/dashboard/projects/${project.id}`,
-              icon: Target,
-              priority,
-              taskCount: projectTasks.length,
-              completedCount: completedTasks.length,
-              items: [
-                {
-                  title: "Overview",
-                  url: `/dashboard/projects/${project.id}`,
-                  priority: "High" as const,
-                },
-                {
-                  title: "Tasks",
-                  url: `/dashboard/projects/${project.id}/tasks`,
-                  priority: "Medium" as const,
-                },
-                {
-                  title: "Settings", 
-                  url: `/dashboard/projects/${project.id}/settings`,
-                  priority: "Low" as const,
-                },
-              ],
-            }
-          })
+        console.log('📦 Sidebar Projects API Response:', projectsResponse)
+        console.log('📋 Sidebar Tasks API Response:', allTasks)
         
-        setUserProjects(userProjectsData)
+        // Extract projects from the response (same as dashboard)
+        const projectsData = projectsResponse.data || []
+        console.log('📊 Sidebar processed projects data:', projectsData)
+        
+        // Group tasks by project_id
+        const tasksData: {[key: number]: any[]} = {}
+        projectsData.forEach((project: any) => {
+          const projectTasksList = allTasks.filter((task: any) => task.project_id === project.id)
+          tasksData[project.id] = projectTasksList
+        })
+        
+        // Transform projects for sidebar display - simplified version
+        const transformedProjects = projectsData.map((project: any) => {
+          const projectTasksList = tasksData[project.id] || []
+          const completedTasks = projectTasksList.filter((task: any) => task.status === "Done" || task.status === "Completed")
+          
+          return {
+            id: project.id,
+            name: project.name,
+            url: `/dashboard/projects/${project.id}`,
+            icon: Target,
+            priority: project.priority || "Medium",
+            taskCount: projectTasksList.length,
+            completedCount: completedTasks.length,
+            // Simplified tasks list - just show task names and status
+            tasks: projectTasksList.map((task: any) => ({
+              id: task.id,
+              title: task.title || task.name,
+              url: `/task`, // Simple redirect to task board
+              status: task.status,
+              priority: task.priority || "Medium",
+            }))
+          }
+        })
+        
+        setUserProjects(transformedProjects)
+        setProjectTasks(tasksData)
+        console.log('✅ Sidebar final transformed projects:', transformedProjects)
       } catch (error) {
         console.error('Failed to load user projects:', error)
+        setUserProjects([])
+        setProjectTasks({})
       } finally {
         setLoading(false)
       }
     }
 
     loadUserProjects()
+  }, [user?.user_id, isAuthenticated, refreshKey]) // Added refreshKey as dependency
+
+  // Auto-refresh sidebar when window gains focus or becomes visible (same as dashboard)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (user?.user_id && isAuthenticated) {
+        console.log('🔄 Sidebar: Window focused, reloading projects...')
+        setRefreshKey(prev => prev + 1) // Trigger refresh by updating key
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden && user?.user_id && isAuthenticated) {
+        console.log('🔄 Sidebar: Page became visible, reloading projects...')
+        setRefreshKey(prev => prev + 1) // Trigger refresh by updating key
+      }
+    }
+
+    // Listen for custom events from other components
+    const handleProjectCreated = () => {
+      if (user?.user_id && isAuthenticated) {
+        console.log('🔄 Sidebar: Project created event received, reloading...')
+        setTimeout(() => {
+          setRefreshKey(prev => prev + 1) // Trigger refresh after small delay
+        }, 300) // Small delay to ensure backend has saved the project
+      }
+    }
+
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('projectCreated', handleProjectCreated)
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('projectCreated', handleProjectCreated)
+    }
   }, [user?.user_id, isAuthenticated])
 
   const handleLogout = () => {
@@ -248,12 +336,6 @@ export function AppSidebar() {
                   <ChevronDown className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-180" />
                 </CollapsibleTrigger>
               </SidebarGroupLabel>
-              <SidebarGroupAction asChild>
-                <Link href="/dashboard/projects/new">
-                  <Plus />
-                  <span className="sr-only">Create Project</span>
-                </Link>
-              </SidebarGroupAction>
               <CollapsibleContent>
                 <SidebarGroupContent>
                   <SidebarMenu>
@@ -280,22 +362,20 @@ export function AppSidebar() {
                               {/* Project Name - Clickable link */}
                               <SidebarMenuButton asChild tooltip={project.name} className="flex-1">
                                 <Link href={project.url} className="flex items-center">
-                                  <span className="mr-2 text-base">
-                                    {getPriorityEmoji(project.priority)}
-                                  </span>
-                                  <span>{project.name}</span>
+                                  <Target className="mr-2 h-4 w-4" />
+                                  <span className="truncate">{project.name}</span>
                                 </Link>
                               </SidebarMenuButton>
                               
                               {/* Task count badge */}
                               {project.taskCount > 0 && (
                                 <SidebarMenuBadge>
-                                  {project.completedCount}/{project.taskCount}
+                                  {project.taskCount}
                                 </SidebarMenuBadge>
                               )}
                               
-                              {/* Dropdown Toggle - Separate clickable area */}
-                              {project.items?.length ? (
+                              {/* Dropdown Toggle - Only show if has tasks */}
+                              {project.tasks?.length > 0 ? (
                                 <CollapsibleTrigger asChild>
                                   <SidebarMenuAction className="data-[state=open]:rotate-90 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
                                     <ChevronRight />
@@ -305,18 +385,19 @@ export function AppSidebar() {
                               ) : null}
                             </div>
                             
-                            {/* Collapsible Content */}
-                            {project.items?.length ? (
+                            {/* Tasks under each project - Simple list */}
+                            {project.tasks?.length > 0 ? (
                               <CollapsibleContent>
                                 <SidebarMenuSub>
-                                  {project.items?.map((subItem: any) => (
-                                    <SidebarMenuSubItem key={subItem.title}>
+                                  {project.tasks.map((task: any) => (
+                                    <SidebarMenuSubItem key={task.id}>
                                       <SidebarMenuSubButton asChild>
-                                        <Link href={subItem.url} className="flex items-center">
-                                          <span className="mr-2 text-xs">
-                                            {getPriorityEmoji(subItem.priority)}
+                                        <Link href={task.url} className="flex items-center justify-between">
+                                          <span className="flex-1 truncate text-sm">{task.title}</span>
+                                          <span className="text-xs text-muted-foreground ml-2">
+                                            {task.status === "Done" || task.status === "Completed" ? "✓" : 
+                                             task.status === "In Progress" ? "⏳" : "○"}
                                           </span>
-                                          <span>{subItem.title}</span>
                                         </Link>
                                       </SidebarMenuSubButton>
                                     </SidebarMenuSubItem>
@@ -354,7 +435,7 @@ export function AppSidebar() {
 
                   <div className="grid flex-1 text-left text-sm leading-tight data-[sidebar-collapsed]:hidden">
                     <span className="truncate font-semibold">
-                      {isAuthenticated ? user?.user_id || 'User' : 'Guest'}
+                      {isAuthenticated ? getUserDisplayName() : 'Guest'}
                     </span>
                     <span className="truncate text-xs">
                       {isAuthenticated ? (user?.email || 'No email') : 'Not signed in'}

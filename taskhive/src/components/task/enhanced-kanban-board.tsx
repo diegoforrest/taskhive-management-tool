@@ -12,14 +12,14 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
 import Link from "next/link";
-import { tasksApi, Task, CreateTaskRequest, TasksByStatus } from "@/lib/api";
+import { tasksApi, authApi, Task, CreateTaskRequest, TasksByStatus } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useSearch } from "@/lib/search-context";
 
 // Type definitions
 type ItemType = 'project' | 'task';
-type ItemStatus = 'Todo' | 'In Progress' | 'Completed';
-type Priority = 'High' | 'Medium' | 'Low';
+type ItemStatus = 'Todo' | 'In Progress' | 'Done';  // Changed from 'Completed' to match backend
+type Priority = 'High' | 'Medium' | 'Low' | 'Critical';
 
 interface ProjectInfo {
   title: string;
@@ -28,6 +28,7 @@ interface ProjectInfo {
 
 interface EnhancedKanbanBoardProps {
   project?: ProjectInfo;
+  projectId?: number;
 }
 
 interface Column {
@@ -51,14 +52,15 @@ const columns: Column[] = [
     bgColor: 'bg-blue-50'
   },
   {
-    id: 'Completed',
-    title: 'COMPLETED',
+    id: 'Done',  // Changed from 'Completed'
+    title: 'DONE',  // Changed from 'COMPLETED'
     color: 'border-l-green-500',
     bgColor: 'bg-green-50'
   }
 ];
 
 const priorityConfig: Record<Priority, { color: string; icon: string }> = {
+  'Critical': { color: 'destructive', icon: '🚨' },
   'High': { color: 'destructive', icon: '🔥' },
   'Medium': { color: 'secondary', icon: '⚡' },
   'Low': { color: 'outline', icon: '📝' }
@@ -69,13 +71,13 @@ const typeConfig: Record<ItemType, { label: string; color: string }> = {
   'task': { label: 'TASK', color: 'bg-blue-100 text-blue-800' }
 };
 
-export default function EnhancedKanbanBoard({ project }: EnhancedKanbanBoardProps = {}) {
+export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanbanBoardProps = {}) {
   const { user, isAuthenticated } = useAuth();
   const { highlightedTaskId } = useSearch();
   const [tasks, setTasks] = useState<TasksByStatus>({
     'Todo': [],
     'In Progress': [],
-    'Completed': []
+    'Done': []  // Changed from 'Completed' to 'Done'
   });
   const [showNewItemForm, setShowNewItemForm] = useState<string>('');
   const [selectedItem, setSelectedItem] = useState<Task | null>(null);
@@ -84,6 +86,7 @@ export default function EnhancedKanbanBoard({ project }: EnhancedKanbanBoardProp
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [errorCountdown, setErrorCountdown] = useState<number>(0);
+  const [projectData, setProjectData] = useState<any>(null);
 
   // Function to set error with countdown
   const setErrorWithCountdown = useCallback((message: string) => {
@@ -102,31 +105,63 @@ export default function EnhancedKanbanBoard({ project }: EnhancedKanbanBoardProp
     }, 1000);
   }, []);
 
-  // Load tasks on component mount
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadTasks();
-    }
-  }, [isAuthenticated]);
-
-  const loadTasks = async () => {
+  const loadTasks = useCallback(async () => {
+    if (!projectId) return;
+    
     try {
       setLoading(true);
-      const tasksByStatus = await tasksApi.getTasksByStatus();
-      setTasks(tasksByStatus);
+      const response = await authApi.getTasks(projectId);
+      if (response.success && response.data) {
+        // Group tasks by status
+        const groupedTasks: TasksByStatus = {
+          'Todo': response.data.filter((task: Task) => task.status === 'Todo'),
+          'In Progress': response.data.filter((task: Task) => task.status === 'In Progress'),
+          'Done': response.data.filter((task: Task) => task.status === 'Done'),
+        };
+        setTasks(groupedTasks);
+      }
       setError('');
     } catch (err: any) {
       console.error('Failed to load tasks:', err);
-      // For demo purposes, use mock data if API fails
+      // For demo purposes, use empty state if API fails
       setTasks({
         'Todo': [],
         'In Progress': [],
-        'Completed': []
+        'Done': []
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId]);
+
+  // Load tasks on component mount
+  useEffect(() => {
+    if (isAuthenticated && projectId) {
+      loadTasks();
+    }
+  }, [isAuthenticated, projectId, loadTasks]);
+
+  const loadProject = useCallback(async () => {
+    if (!projectId || !user?.user_id) return;
+    
+    try {
+      const response = await authApi.getProject(projectId, user.user_id);
+      if (response.success && response.data) {
+        setProjectData(response.data);
+      }
+    } catch (err: any) {
+      console.error('Failed to load project:', err);
+      // Use fallback project data if API fails
+      setProjectData(project || { name: 'Unknown Project', description: '' });
+    }
+  }, [projectId, user?.user_id, project]);
+
+  // Load project data on component mount
+  useEffect(() => {
+    if (isAuthenticated && projectId && user?.user_id) {
+      loadProject();
+    }
+  }, [isAuthenticated, projectId, user?.user_id, loadProject]);
 
   const moveTask = useCallback(async (taskId: number, newStatus: ItemStatus): Promise<void> => {
     try {
@@ -155,7 +190,7 @@ export default function EnhancedKanbanBoard({ project }: EnhancedKanbanBoardProp
       });
 
       // Update on backend
-      await tasksApi.updateTaskStatus(taskId, newStatus);
+      await authApi.updateTask(taskId, { status: newStatus });
     } catch (error) {
       console.error('Failed to move task:', error);
       // Revert optimistic update by reloading tasks
@@ -164,30 +199,60 @@ export default function EnhancedKanbanBoard({ project }: EnhancedKanbanBoardProp
   }, []);
 
   const addNewTask = useCallback(async (taskData: CreateTaskRequest): Promise<void> => {
+    if (!projectId) {
+      setErrorWithCountdown('Project ID is required to create a task.');
+      return;
+    }
+
     try {
-      const newTask = await tasksApi.createTask(taskData);
-      setTasks(prevTasks => ({
-        ...prevTasks,
-        [newTask.status]: [...prevTasks[newTask.status], newTask]
-      }));
-      setShowNewItemForm('');
+      // Convert frontend form data to backend format
+      const backendTaskData = {
+        project_id: projectId,
+        name: taskData.name,
+        contents: taskData.contents,
+        priority: taskData.priority,
+        due_date: taskData.due_date,
+        assignee: taskData.assignee,
+      };
+
+      const response = await authApi.createTask(backendTaskData);
+      
+      if (response.success && response.data) {
+        // Add the new task to the appropriate column
+        const newTask: Task = {
+          ...response.data,
+          status: taskData.status || 'Todo'  // Use the column status
+        };
+        
+        setTasks(prevTasks => ({
+          ...prevTasks,
+          [newTask.status]: [...prevTasks[newTask.status], newTask]
+        }));
+        setShowNewItemForm('');
+      } else {
+        throw new Error(response.message || 'Failed to create task');
+      }
     } catch (error) {
       console.error('Failed to create task:', error);
       setErrorWithCountdown('Failed to create task. Please try again.');
     }
-  }, []);
+  }, [projectId]);
 
   const deleteTask = useCallback(async (taskId: number): Promise<void> => {
     try {
-      await tasksApi.deleteTask(taskId);
-      setTasks(prevTasks => {
-        const newTasks = { ...prevTasks };
-        for (const status of Object.keys(newTasks) as ItemStatus[]) {
-          newTasks[status] = newTasks[status].filter(task => task.id !== taskId);
-        }
-        return newTasks;
-      });
-      setSelectedItem(null);
+      const response = await authApi.deleteTask(taskId);
+      if (response.success) {
+        setTasks(prevTasks => {
+          const newTasks = { ...prevTasks };
+          for (const status of Object.keys(newTasks) as ItemStatus[]) {
+            newTasks[status] = newTasks[status].filter(task => task.id !== taskId);
+          }
+          return newTasks;
+        });
+        setSelectedItem(null);
+      } else {
+        throw new Error(response.message || 'Failed to delete task');
+      }
     } catch (error) {
       console.error('Failed to delete task:', error);
       setErrorWithCountdown('Failed to delete task. Please try again.');
@@ -196,34 +261,38 @@ export default function EnhancedKanbanBoard({ project }: EnhancedKanbanBoardProp
 
   const updateTask = useCallback(async (updatedTask: Task): Promise<void> => {
     try {
-      // Create the update payload with all the fields
+      // Create the update payload with only the fields supported by backend
       const updatePayload = {
-        title: updatedTask.title,
-        description: updatedTask.description,
-        type: updatedTask.type,
+        name: updatedTask.name,
+        contents: updatedTask.contents,
         status: updatedTask.status,
         priority: updatedTask.priority,
-        dueDate: updatedTask.dueDate,
-        assignee: updatedTask.assignee,
-        progress: updatedTask.progress
+        due_date: updatedTask.due_date,
+        assignee: updatedTask.assignee
       };
       
-      const result = await tasksApi.updateTask(updatedTask.id, updatePayload);
+      const result = await authApi.updateTask(updatedTask.id, updatePayload);
       
-      // Update the local state optimistically
-      setTasks(prevTasks => {
-        const newTasks = { ...prevTasks };
-        
-        // Remove from all statuses first
-        for (const status of Object.keys(newTasks) as ItemStatus[]) {
-          newTasks[status] = newTasks[status].filter(task => task.id !== updatedTask.id);
-        }
-        
-        // Add to the correct status
-        newTasks[result.status].push(result);
-        
-        return newTasks;
-      });
+      if (result.success && result.data) {
+        // Update the local state optimistically
+        setTasks(prevTasks => {
+          const newTasks = { ...prevTasks };
+          const updatedTaskData = result.data;
+          
+          // Remove from all statuses first
+          for (const status of Object.keys(newTasks) as ItemStatus[]) {
+            newTasks[status] = newTasks[status].filter(task => task.id !== updatedTask.id);
+          }
+          
+          // Add to the correct status (ensure it's a valid ItemStatus)
+          const taskStatus = updatedTaskData.status as ItemStatus;
+          if (taskStatus && newTasks[taskStatus]) {
+            newTasks[taskStatus].push(updatedTaskData);
+          }
+          
+          return newTasks;
+        });
+      }
       
       setSelectedItem(null);
     } catch (error) {
@@ -232,7 +301,7 @@ export default function EnhancedKanbanBoard({ project }: EnhancedKanbanBoardProp
       // Reload tasks to revert any optimistic updates
       loadTasks();
     }
-  }, []);
+  }, [loadTasks]);
 
   // Helper function for mobile move functionality
   const updateTaskStatus = useCallback(async (task: Task, newStatus: string): Promise<void> => {
@@ -311,10 +380,10 @@ export default function EnhancedKanbanBoard({ project }: EnhancedKanbanBoardProp
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-            {project?.title || 'Project Board'}
+            {projectData?.name || project?.title || 'Project Board'}
           </h1>
           <p className="text-muted-foreground text-sm sm:text-base line-clamp-1">
-            {project?.description || 'Drag and drop items between columns to change their status'}
+            {projectData?.description || project?.description || 'Drag and drop items between columns to change their status'}
           </p>
         </div>
         <Button onClick={() => setShowNewItemForm('Todo')} className="w-full sm:w-auto">
@@ -458,7 +527,7 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
     
     if (currentStatus !== 'Todo') options.push({ value: 'Todo', label: '📋 Todo', icon: '←' });
     if (currentStatus !== 'In Progress') options.push({ value: 'In Progress', label: '⚡ In Progress', icon: '↔' });
-    if (currentStatus !== 'Completed') options.push({ value: 'Completed', label: '✅ Completed', icon: '→' });
+    if (currentStatus !== 'Done') options.push({ value: 'Done', label: '✅ Done', icon: '→' });  // Changed from 'Completed'
     
     return options;
   };
@@ -486,8 +555,8 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center space-x-1 sm:space-x-2 min-w-0 flex-1">
           <GripVertical className="hidden sm:block h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-          <Badge className={`text-xs font-bold ${typeConfig[item.type].color} flex-shrink-0`}>
-            {typeConfig[item.type].label}
+          <Badge className={`text-xs font-bold ${item.type ? typeConfig[item.type].color : 'bg-gray-100 text-gray-700'} flex-shrink-0`}>
+            {item.type ? typeConfig[item.type].label : 'Task'}
           </Badge>
           <Badge variant={priorityConfig[item.priority].color as any} className="text-xs flex-shrink-0">
             <span className="hidden sm:inline">{priorityConfig[item.priority].icon} {item.priority}</span>
@@ -537,9 +606,11 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
         </DropdownMenu>
       </div>
 
-      <h3 className="font-semibold text-sm mb-2 line-clamp-2">{item.title}</h3>
+      <h3 className="font-semibold text-sm mb-2 line-clamp-2">
+        {item.name}
+      </h3>
       
-      {item.description && (
+      {item.contents && (
         <Dialog>
           <DialogTrigger asChild>
             <div 
@@ -554,7 +625,7 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
               <div 
                 className="text-muted-foreground text-xs line-clamp-3 break-words select-text"
                 dangerouslySetInnerHTML={{
-                  __html: item.description.replace(
+                  __html: (item.contents || '').replace(
                     /(https?:\/\/[^\s]+)/g,
                     '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:text-blue-700 underline">$1</a>'
                   )
@@ -565,15 +636,15 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
           <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden">
             <DialogHeader className="pb-4 border-b">
               <div className="flex items-start gap-3 mb-3">
-                <Badge className={`${typeConfig[item.type].color} text-xs`}>
-                  {typeConfig[item.type].label}
+                <Badge className={`${item.type ? typeConfig[item.type].color : 'bg-gray-100 text-gray-700'} text-xs`}>
+                  {item.type ? typeConfig[item.type].label : 'Task'}
                 </Badge>
                 <Badge variant={priorityConfig[item.priority].color as any} className="text-xs">
                   {priorityConfig[item.priority].icon} {item.priority}
                 </Badge>
               </div>
               <DialogTitle className="text-xl font-bold text-left leading-tight pr-8">
-                {item.title}
+                {item.name}
               </DialogTitle>
             </DialogHeader>
             <div className="overflow-y-auto max-h-[60vh] py-4">
@@ -586,7 +657,7 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
                     <div 
                       className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap break-words"
                       dangerouslySetInnerHTML={{
-                        __html: item.description.replace(
+                        __html: (item.contents || '').replace(
                           /(https?:\/\/[^\s]+)/g,
                           '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:text-blue-700 underline font-medium">$1</a>'
                         )
@@ -603,7 +674,7 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-gray-500" />
                       <span className="text-sm font-medium">
-                        {item.dueDate ? new Date(item.dueDate).toLocaleDateString('en-US', { 
+                        {item.due_date ? new Date(item.due_date).toLocaleDateString('en-US', { 
                           year: 'numeric', 
                           month: 'short', 
                           day: 'numeric' 
@@ -644,14 +715,14 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
       
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <div className="flex items-center min-w-0">
-          {item.dueDate && (
+          {item.due_date && (
             <div className="flex items-center flex-shrink-0 mr-2">
               <Calendar className="h-3 w-3 flex-shrink-0 mr-1" />
               <span className="hidden sm:inline truncate">
-                {new Date(item.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                {new Date(item.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               </span>
               <span className="sm:hidden truncate">
-                {new Date(item.dueDate).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
+                {new Date(item.due_date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
               </span>
             </div>
           )}
@@ -678,18 +749,18 @@ interface NewItemFormProps {
 
 const NewItemForm = ({ columnId, onCancel, onAdd }: NewItemFormProps) => {
   const [formData, setFormData] = useState<CreateTaskRequest>({
-    title: '',
-    description: '',
+    name: '',  // Changed from 'title'
+    contents: '',  // Changed from 'description'
     type: 'task',
     priority: 'Medium',
-    dueDate: '',
+    due_date: '',  // Changed from 'dueDate'
     assignee: '',
     progress: 0,
     status: columnId
   });
 
   const handleSubmit = () => {
-    if (!formData.title.trim()) return;
+    if (!formData.name.trim()) return;  // Changed from 'title'
     onAdd(formData);
   };
 
@@ -715,16 +786,16 @@ const NewItemForm = ({ columnId, onCancel, onAdd }: NewItemFormProps) => {
         
         <Input
           placeholder="Task title"
-          value={formData.title}
-          onChange={(e) => setFormData(prev => ({...prev, title: e.target.value}))}
+          value={formData.name}  // Changed from 'title'
+          onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))}  // Changed from 'title'
           autoFocus
           className="text-sm"
         />
         
         <Textarea
           placeholder="Description (optional)"
-          value={formData.description}
-          onChange={(e) => setFormData(prev => ({...prev, description: e.target.value}))}
+          value={formData.contents}  // Changed from 'description'
+          onChange={(e) => setFormData(prev => ({...prev, contents: e.target.value}))}  // Changed from 'description'
           className="min-h-[60px] text-sm resize-none"
         />
         
@@ -732,8 +803,8 @@ const NewItemForm = ({ columnId, onCancel, onAdd }: NewItemFormProps) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <Input
             type="date"
-            value={formData.dueDate}
-            onChange={(e) => setFormData(prev => ({...prev, dueDate: e.target.value}))}
+            value={formData.due_date}  // Changed from 'dueDate'
+            onChange={(e) => setFormData(prev => ({...prev, due_date: e.target.value}))}  // Changed from 'dueDate'
             className="text-sm"
             placeholder="Due date"
           />
@@ -807,13 +878,13 @@ const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
   useEffect(() => {
     const timer = setTimeout(() => {
       const textarea = document.querySelector('textarea[placeholder*="description"]') as HTMLTextAreaElement;
-      if (textarea && editedItem.description) {
+      if (textarea && editedItem.contents) {
         textarea.style.height = 'auto';
         textarea.style.height = `${Math.max(60, textarea.scrollHeight)}px`;
       }
     }, 50);
     return () => clearTimeout(timer);
-  }, [editedItem.description]);
+  }, [editedItem.contents]);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4 touch-none">
@@ -824,8 +895,8 @@ const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
             <div className="flex-1 mr-2">
               <CardTitle className="text-base sm:text-xl mb-1 sm:mb-2">Edit {item.type === 'project' ? 'Project' : 'Task'}</CardTitle>
               <div className="flex items-center space-x-1 sm:space-x-2">
-                <Badge className={`text-xs font-bold ${typeConfig[editedItem.type].color}`}>
-                  {typeConfig[editedItem.type].label}
+                <Badge className={`text-xs font-bold ${editedItem.type ? typeConfig[editedItem.type].color : 'bg-gray-100 text-gray-700'}`}>
+                  {editedItem.type ? typeConfig[editedItem.type].label : 'Task'}
                 </Badge>
                 <Badge variant={priorityConfig[editedItem.priority].color as any} className="text-xs">
                   {priorityConfig[editedItem.priority].icon} {editedItem.priority}
@@ -844,8 +915,8 @@ const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
           <div className="space-y-2">
             <label className="text-xs sm:text-sm font-medium">Title</label>
             <Input
-              value={editedItem.title}
-              onChange={(e) => setEditedItem({...editedItem, title: e.target.value})}
+              value={editedItem.name}
+              onChange={(e) => setEditedItem({...editedItem, name: e.target.value})}
               placeholder={`${item.type === 'project' ? 'Project' : 'Task'} title`}
               className="text-sm sm:text-base"
             />
@@ -854,9 +925,9 @@ const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
           <div className="space-y-2">
             <label className="text-xs sm:text-sm font-medium">Description</label>
             <Textarea
-              value={editedItem.description || ''}
+              value={editedItem.contents || ''}
               onChange={(e) => {
-                setEditedItem({...editedItem, description: e.target.value});
+                setEditedItem({...editedItem, contents: e.target.value});
                 // Auto-resize textarea
                 const textarea = e.target as HTMLTextAreaElement;
                 textarea.style.height = 'auto';
@@ -867,7 +938,7 @@ const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
               placeholder={`${item.type === 'project' ? 'Project' : 'Task'} description (supports links)`}
               className="min-h-[60px] text-sm resize-none overflow-hidden"
               style={{ 
-                height: editedItem.description ? 'auto' : '60px',
+                height: editedItem.contents ? 'auto' : '60px',
                 minHeight: '60px'
               }}
               onMouseDown={(e) => e.stopPropagation()}
@@ -882,8 +953,8 @@ const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
                 <label className="text-xs font-medium text-gray-600">Due Date</label>
                 <Input
                   type="date"
-                  value={editedItem.dueDate || ''}
-                  onChange={(e) => setEditedItem({...editedItem, dueDate: e.target.value})}
+                  value={editedItem.due_date || ''}
+                  onChange={(e) => setEditedItem({...editedItem, due_date: e.target.value})}
                   className="h-9 text-sm w-full"
                 />
               </div>

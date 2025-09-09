@@ -87,6 +87,7 @@ export default function ProjectPage() {
             title: project.title,
             description: project.description
           }}
+          projectId={parseInt(projectId)}
         />
       </div>
     </div>

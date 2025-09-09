@@ -5,30 +5,23 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
-  // Enable CORS for your Next.js frontend
+  // Enable CORS for frontend communication
   app.enableCors({
-    origin: [
-      'http://localhost:3000', 
-      'http://localhost:3001',
-      'http://localhost:3003'
-    ],
+    origin: ['http://localhost:3000', 'http://localhost:3001'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   });
 
-  // Global validation pipe
+  // Enable global validation pipes
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
     forbidNonWhitelisted: true,
     transform: true,
   }));
 
-  // API prefix
-  app.setGlobalPrefix('api');
-
   const port = process.env.PORT || 3001;
   await app.listen(port);
-  
-  console.log(`🚀 Application is running on: http://localhost:${port}/api`);
+  console.log(`🚀 TaskHive Backend running on http://localhost:${port}`);
 }
-
-bootstrap(); // <- This line is crucial!
+bootstrap();

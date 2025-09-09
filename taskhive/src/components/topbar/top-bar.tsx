@@ -50,14 +50,51 @@ export function TopBar() {
     router.push('/')
   }
 
+  // Get user display name
+  const getUserDisplayName = () => {
+    if (!user) return 'Guest'
+    
+    // Use firstName and lastName if available
+    if (user.firstName && user.lastName) {
+      const firstName = user.firstName.trim().charAt(0).toUpperCase() + user.firstName.trim().slice(1).toLowerCase()
+      const lastName = user.lastName.trim().charAt(0).toUpperCase() + user.lastName.trim().slice(1).toLowerCase()
+      return `${firstName} ${lastName}`
+    }
+    
+    // Use firstName only if available
+    if (user.firstName) {
+      return user.firstName.trim().charAt(0).toUpperCase() + user.firstName.trim().slice(1).toLowerCase()
+    }
+    
+    // Use email if no name available
+    if (user.email) {
+      return user.email.split('@')[0]
+    }
+    
+    // Fallback to user_id
+    return `User ${user.user_id}`
+  }
+
   // Get user initials for avatar fallback
   const getUserInitials = () => {
-    if (!user?.user_id) return 'G'
-    const parts = user.user_id.split('.')
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase()
+    if (!user) return 'G'
+    
+    // Use firstName and lastName if available
+    if (user.firstName && user.lastName) {
+      return (user.firstName[0] + user.lastName[0]).toUpperCase()
     }
-    return user.user_id.substring(0, 2).toUpperCase()
+    
+    // Use email if firstName/lastName not available
+    if (user.email) {
+      const parts = user.email.split('@')[0].split('.')
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase()
+      }
+      return user.email.substring(0, 2).toUpperCase()
+    }
+    
+    // Fallback to user_id
+    return user.user_id.toString().substring(0, 2).toUpperCase() || 'U'
   }
 
   // Handle keyboard shortcuts
@@ -254,7 +291,7 @@ export function TopBar() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-9 w-9 rounded-full p-0">
                   <Avatar className="h-9 w-9">
-                    <AvatarImage src="/bee.png" alt={user?.user_id || 'Guest'} />
+                    <AvatarImage src="/bee.png" alt={getUserDisplayName()} />
                     <AvatarFallback>{getUserInitials()}</AvatarFallback>
                   </Avatar>
                 </Button>
@@ -263,7 +300,7 @@ export function TopBar() {
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium leading-none truncate">
-                      {isAuthenticated ? user?.user_id || 'User' : 'Guest'}
+                      {isAuthenticated ? getUserDisplayName() : 'Guest'}
                     </p>
                     <p className="text-xs leading-none text-muted-foreground truncate">
                       {isAuthenticated ? (user?.email || 'No email') : 'Not signed in'}
