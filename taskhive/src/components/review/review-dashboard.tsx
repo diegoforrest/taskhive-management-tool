@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { tasksApi, Task } from "@/lib/api";
+import { tasksApi, Task, authApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 // Type definitions for Review System
@@ -30,13 +30,28 @@ interface ReviewNote {
   timestamp: string;
 }
 
-interface TaskWithReviews extends Task {
+interface TaskWithReviews {
+  id: number;
+  name?: string;
+  title?: string;
+  description?: string;
+  contents?: string;
+  type?: 'task' | 'project';
+  // include both 'Done' and 'Completed' to map backend and UI variants
+  status?: 'Todo' | 'In Progress' | 'Done' | 'Completed';
+  priority?: 'Low' | 'Medium' | 'High' | 'Critical' | string;
+  dueDate?: string;
+  due_date?: string;
+  assignee?: string;
+  progress?: number;
   projectId?: number;
   projectTitle?: string;
   reviewNotes?: ReviewNote[];
   lastReviewAction?: ReviewAction;
   reviewStatus?: ReviewStatus;
   needsReview?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 const reviewTypeConfig = {
@@ -92,6 +107,8 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
   const [selectedReviewType, setSelectedReviewType] = useState<ReviewType>('general_review');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [showToast, setShowToast] = useState<{ message: string; type?: 'success' | 'error' | 'info' } | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [reviewFilter, setReviewFilter] = useState<'all' | 'approved' | 'pending' | 'changes_requested' | 'on_hold'>('all');
 
   // Mock review data - updated to match actual task IDs
@@ -130,11 +147,68 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
     }
   ];
 
-  // Load tasks that need review from API
+  // If parent passed `reviewProjects` (the page fetches projects + tasks), prefer that data
   useEffect(() => {
-    loadTasksForReview();
-  }, []); // Remove reviewProjects dependency since we're loading from API
+    const buildFromPassedProjects = () => {
+      try {
+        setLoading(true);
 
+        if (reviewProjects && reviewProjects.length > 0) {
+          const tasksFromProjects: TaskWithReviews[] = [];
+
+          reviewProjects.forEach((proj: any) => {
+            const projTasks = Array.isArray(proj.tasks) ? proj.tasks : [];
+
+            projTasks.forEach((task: any) => {
+              // Only consider tasks that are marked as Done for review
+              const statusIsDone = (task.status === 'Done' || task.status === 'done' || task.status === 'Completed' || task.status === 'completed');
+              if (!statusIsDone) return;
+
+              const taskReviews = mockReviewData.filter(review => review.taskId === task.id);
+              const lastReview = taskReviews.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+
+              tasksFromProjects.push({
+                id: task.id,
+                title: task.name || task.title,
+                description: task.contents || task.description,
+                type: 'task',
+                status: 'Completed',
+                priority: (task.priority as any) || 'Medium',
+                projectId: proj.id,
+                projectTitle: proj.name || proj.title || proj.project_name,
+                reviewNotes: taskReviews,
+                lastReviewAction: lastReview?.action,
+                reviewStatus: lastReview?.action === 'approve' ? 'approved' : 
+                             lastReview?.action === 'request_changes' ? 'changes_requested' :
+                             lastReview?.action === 'hold_discussion' ? 'on_hold' : 'pending',
+                needsReview: !lastReview || lastReview.action !== 'approve',
+                dueDate: task.due_date || task.dueDate || task.due
+              } as TaskWithReviews);
+            });
+          });
+
+          setTasksForReview(tasksFromProjects);
+          return true;
+        }
+      } catch (err) {
+        console.error('Failed to build review tasks from passed projects:', err);
+      } finally {
+        setLoading(false);
+      }
+
+      return false;
+    };
+
+    const usedPassed = buildFromPassedProjects();
+
+    if (!usedPassed) {
+      // Fallback to loading from API (existing implementation)
+      loadTasksForReview();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewProjects]);
+
+  // Load tasks that need review from API (kept as a fallback)
   const loadTasksForReview = async () => {
     try {
       setLoading(true);
@@ -163,7 +237,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
           description: task.contents,
           type: 'task' as const,
           status: 'Completed' as const, // Map "Done" to "Completed" for UI
-          priority: 'Medium' as const, // Default priority since API doesn't provide it
+          priority: (task.priority as any) || 'Medium',
           projectId: task.project_id,
           projectTitle: project?.name || 'Unknown Project',
           reviewNotes: taskReviews,
@@ -194,7 +268,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
       const newReview: ReviewNote = {
         id: Date.now().toString(),
         taskId: selectedTask.id,
-        reviewerId: user?.user_id || 'current-user',
+        reviewerId: String(user?.user_id || 'current-user'),
         reviewerName: user?.email?.split('@')[0] || 'Current User',
         action: selectedAction,
         reviewType: 'general_review', // Default to general review
@@ -205,9 +279,9 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
 
       // Update task status based on review action
       if (selectedAction === 'request_changes') {
-        // Move task back to In Progress
-        await tasksApi.updateTaskStatus(selectedTask.id, 'In Progress');
-        // Create changelog entry
+        // Move task back to In Progress using the real API
+        await authApi.updateTask(selectedTask.id, { status: 'In Progress' });
+        // Create changelog entry (mock/backfill)
         await tasksApi.createChangelog(
           selectedTask.id,
           'Completed',
@@ -215,8 +289,8 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
           `Review: ${reviewNotes.trim()}${changeDetails ? ` - Changes needed: ${changeDetails}` : ''}`
         );
       } else if (selectedAction === 'approve') {
-        // Keep task as Completed when approved
-        console.log(`Task ${selectedTask.id} approved and remains Completed`);
+        // Ensure task is marked Done on backend when approved
+        await authApi.updateTask(selectedTask.id, { status: 'Done' });
         // Create changelog entry for approval
         await tasksApi.createChangelog(
           selectedTask.id,
@@ -275,6 +349,13 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
       
       // Create changelog entries for all tasks in the project
       for (const task of projectTasks) {
+        // Ensure task is recorded as Done on backend and create changelog
+        try {
+          await authApi.updateTask(task.id, { status: 'Done' });
+        } catch (e) {
+          console.warn('Failed to update task status during project approval', task.id, e);
+        }
+
         await tasksApi.createChangelog(
           task.id,
           'Completed',
@@ -282,9 +363,15 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
           `Project approved by team leader`
         );
       }
-      
-      alert(`Project approved! All tasks in this project have been marked as approved.`);
-      
+      // Mark the project status as Completed in the backend
+      try {
+        await authApi.updateProject(projectId, { status: 'Completed' });
+        setShowToast({ message: 'Project approved and marked Completed', type: 'success' });
+      } catch (e) {
+        console.warn('Failed to update project status to Completed', projectId, e);
+        setShowToast({ message: 'Failed to update project status', type: 'error' });
+      }
+
       // Refresh the data to reflect changes
       await loadTasksForReview();
       
@@ -293,6 +380,8 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
       alert('Failed to approve project. Please try again.');
     }
   };
+
+  // handleReviewCompleted removed - project-level completion is now done through handleProjectApproval
 
   const formatReviewDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -303,6 +392,13 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
       minute: '2-digit'
     });
   };
+
+  // Auto-hide toast
+  useEffect(() => {
+    if (!showToast) return;
+    const t = setTimeout(() => setShowToast(null), 3500);
+    return () => clearTimeout(t);
+  }, [showToast]);
 
   const getReviewStats = () => {
     const pending = tasksForReview.filter(task => task.reviewStatus === 'pending' || !task.reviewStatus).length;
@@ -342,10 +438,17 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
   const stats = getReviewStats();
   const filteredTasks = getFilteredTasks();
   
-  // For project-specific reviews, check if we have a projectId parameter
-  // This would come from the URL or props
-  const isProjectSpecific = false; // Set to true when implementing project-specific routing
-  const currentProject: any = null; // This would be loaded based on projectId
+  // For project-specific reviews, use the single project passed via `reviewProjects`
+  const currentProject: any = (reviewProjects && reviewProjects.length === 1) ? reviewProjects[0] : null;
+  const isProjectSpecific = !!currentProject;
+
+  // Project title/description fallbacks for different backend shapes
+  const currentProjectTitle = currentProject
+    ? (currentProject.name || currentProject.title || currentProject.project_name || currentProject.projectName || 'Untitled Project')
+    : null;
+  const currentProjectDescription = currentProject
+    ? (currentProject.description || currentProject.desc || currentProject.contents || currentProject.summary || '')
+    : null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -405,17 +508,48 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
               </>
             )}
           </div>
-          {/* Project Approval Button - Only show for project-specific reviews */}
-          {isProjectSpecific && currentProject && (
-            <Button 
-              className="bg-green-500 hover:bg-green-600 text-white"
-              onClick={() => handleProjectApproval(currentProject.id)}
-            >
-              <CheckCircle className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Approve Project</span>
-              <span className="sm:hidden">Approve</span>
-            </Button>
-          )}
+          {/* Project Approval Button removed from here and moved to the right corner */}
+
+          {/* Approve Project - moved to top-right corner (only for project-specific reviews) */}
+          <div className="ml-2">
+            {isProjectSpecific && currentProject && (
+              <>
+                <Dialog open={confirmOpen} onOpenChange={(v) => setConfirmOpen(Boolean(v))}>
+                  <DialogTrigger asChild>
+                    <Button 
+                      className="bg-green-500 hover:bg-green-600 text-white"
+                      onClick={() => setConfirmOpen(true)}
+                      disabled={submitting}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      <span className="hidden sm:inline">Approve Project</span>
+                      <span className="sm:hidden">Approve</span>
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Confirm Project Approval</DialogTitle>
+                    </DialogHeader>
+                    <p>Are you sure you want to approve this project and mark it as Completed? This will update all visible tasks and set the project status to Completed.</p>
+                    <div className="flex justify-end gap-2 mt-4">
+                      <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancel</Button>
+                      <Button onClick={async () => {
+                        setConfirmOpen(false);
+                        setSubmitting(true);
+                        try {
+                          await handleProjectApproval(currentProject.id);
+                        } finally {
+                          setSubmitting(false);
+                        }
+                      }}>
+                        {submitting ? 'Approving...' : 'Confirm Approve'}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -425,9 +559,9 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
       <div>
         {isProjectSpecific && currentProject ? (
           <>
-            <h1 className="text-3xl font-bold tracking-tight">{currentProject.title}</h1>
+            <h1 className="text-3xl font-bold tracking-tight">{currentProjectTitle}</h1>
             <p className="text-muted-foreground">
-              Review all completed tasks for this project and provide team feedback
+              {currentProjectDescription || 'Review all completed tasks for this project and provide team feedback'}
             </p>
           </>
         ) : (
@@ -734,6 +868,12 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
         </CardContent>
       </Card>
       </div>
+      {/* Toast */}
+      {showToast && (
+        <div className={`fixed bottom-6 right-6 z-50 max-w-xs p-3 rounded shadow-lg text-sm ${showToast.type === 'success' ? 'bg-green-50 border border-green-200 text-green-800' : showToast.type === 'error' ? 'bg-red-50 border border-red-200 text-red-800' : 'bg-gray-50 border border-gray-200 text-gray-800'}`}>
+          <div className="font-medium">{showToast.message}</div>
+        </div>
+      )}
     </div>
   );
 }

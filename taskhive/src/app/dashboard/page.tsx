@@ -22,6 +22,7 @@ export default function DashboardHome() {
   const [note, setNote] = useState("");
   const [projects, setProjects] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
+  const [projectTasks, setProjectTasks] = useState<{ [projectId: number]: any[] }>({});
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   
@@ -78,43 +79,39 @@ export default function DashboardHome() {
     };
   }, [user?.user_id]);
 
+  // Auto-update project status when all tasks are completed
+  useEffect(() => {
+    projects.forEach(project => {
+      const { total, completed } = getTaskStats(project.id);
+      if (total > 0 && completed === total && project.status === 'In Progress') {
+        updateProjectStatusBasedOnTasks(project.id);
+      }
+    });
+  }, [projectTasks, projects]);
+
   const loadData = async () => {
     if (!user?.user_id) return;
     
     try {
       setLoading(true);
       
-      // Load projects from real API and tasks from mock (for now)
-      const [projectsResponse, tasksData] = await Promise.all([
-        authApi.getProjects(typeof user.user_id === 'number' ? user.user_id : parseInt(user.user_id)),
-        tasksApi.getAllTasks()
-      ]);
+      // Load projects from real API
+      const projectsResponse = await authApi.getProjects(typeof user.user_id === 'number' ? user.user_id : parseInt(user.user_id));
       
       console.log('Current user ID:', user.user_id);
-      console.log('Current user ID type:', typeof user.user_id);
-      console.log('Current user email:', user.email);
       console.log('Projects API response:', projectsResponse);
       
       // Extract projects from the response
       const projectsData = projectsResponse.data || [];
       console.log('Projects data:', projectsData);
-      console.log('Total projects found:', projectsData.length);
       
-      // Map projects and add tasks (mock tasks for now since we don't have task endpoints yet)
-      const userProjects = projectsData.map((project: any) => ({
-        ...project,
-        tasks: tasksData.filter((task: any) => task.project_id === project.id) || []
-      }));
+      setProjects(projectsData);
       
-      console.log('Final user projects:', userProjects);
-      console.log('Number of user projects found:', userProjects.length);
+      // Load tasks for each project
+      if (projectsData.length > 0) {
+        await loadProjectTasks(projectsData);
+      }
       
-      setProjects(userProjects);
-      setTasks(tasksData.filter((task: any) => {
-        // Only include tasks that belong to user's projects
-        const userProjectIds = userProjects.map((p: any) => p.id);
-        return userProjectIds.includes(task.project_id);
-      }));
     } catch (error) {
       console.error('Failed to load data:', error);
       
@@ -150,6 +147,96 @@ export default function DashboardHome() {
     }
   };
 
+  const loadProjectTasks = async (projectsData: any[]) => {
+    const tasksByProject: { [projectId: number]: any[] } = {};
+    
+    // Load tasks for each project
+    const taskPromises = projectsData.map(async (project) => {
+      try {
+        const response = await authApi.getTasks(project.id);
+        return { projectId: project.id, tasks: response.data || [] };
+      } catch (error) {
+        console.error(`Failed to load tasks for project ${project.id}:`, error);
+        return { projectId: project.id, tasks: [] };
+      }
+    });
+
+    const results = await Promise.all(taskPromises);
+    
+    results.forEach(({ projectId, tasks }) => {
+      tasksByProject[projectId] = tasks;
+    });
+
+    setProjectTasks(tasksByProject);
+  };
+
+  // Function to get task statistics for a project
+  const getTaskStats = (projectId: number) => {
+    const tasks = projectTasks[projectId] || [];
+    const total = tasks.length;
+    const completed = tasks.filter(task => task.status === 'Done').length;
+    const inProgress = tasks.filter(task => task.status === 'In Progress').length;
+    const todo = tasks.filter(task => task.status === 'Todo').length;
+    
+    // Debug logging
+    console.log(`Project ${projectId} tasks:`, {
+      total,
+      completed,
+      inProgress, 
+      todo,
+      taskStatuses: tasks.map(t => ({ id: t.id, name: t.name, status: t.status }))
+    });
+    
+    return { total, completed, inProgress, todo };
+  };
+
+  // Function to calculate progress percentage
+  const getProjectProgress = (projectId: number) => {
+    const { total, completed } = getTaskStats(projectId);
+    if (total === 0) return 0;
+    return Math.round((completed / total) * 100);
+  };
+
+  // Function to calculate progress segments for multi-color progress bar
+  const getProgressSegments = (projectId: number) => {
+    const { total, todo, inProgress, completed } = getTaskStats(projectId);
+    if (total === 0) return { todoPercent: 100, inProgressPercent: 0, completedPercent: 0 };
+    
+    const segments = {
+      completedPercent: Math.floor((completed / total) * 100),
+      inProgressPercent: Math.floor((inProgress / total) * 100),
+      todoPercent: Math.floor((todo / total) * 100)
+    };
+
+    // Ensure total adds up to 100% by adjusting the largest segment
+    const currentTotal = segments.completedPercent + segments.inProgressPercent + segments.todoPercent;
+    if (currentTotal < 100) {
+      const diff = 100 - currentTotal;
+      if (segments.todoPercent > 0) segments.todoPercent += diff;
+      else if (segments.inProgressPercent > 0) segments.inProgressPercent += diff;
+      else segments.completedPercent += diff;
+    }
+    
+    console.log(`Project ${projectId} segments:`, segments);
+    return segments;
+  };
+
+  // Function to auto-update project status based on task completion
+  const updateProjectStatusBasedOnTasks = async (projectId: number) => {
+    const { total, completed } = getTaskStats(projectId);
+    
+    if (total > 0 && completed === total) {
+      // All tasks completed, set project to "To Review"
+      try {
+        await authApi.updateProject(projectId, { status: 'To Review' });
+        // Refresh projects to show updated status
+        loadData();
+      } catch (error) {
+        console.error('Failed to update project status:', error);
+      }
+    }
+  };
+
   const handleCompleteProject = () => {
     if (completionDialog.projectId) {
       setProjects(prevProjects => 
@@ -172,20 +259,13 @@ export default function DashboardHome() {
     }
   };
 
-  // Calculate progress for each project
-  const getProjectProgress = (tasks: any[]) => {
-    if (tasks.length === 0) return 0;
-    const completedTasks = tasks.filter((task: any) => task.status === "Done").length;
-    return Math.round((completedTasks / tasks.length) * 100);
-  };
-
-  // Determine project status
-  const getProjectStatus = (tasks: any[]) => {
-    if (tasks.length === 0) return "No Tasks";
-    const progress = getProjectProgress(tasks);
+  // Determine project status based on task completion
+  const getProjectStatus = (projectId: number) => {
+    const { total, completed } = getTaskStats(projectId);
+    if (total === 0) return "No Tasks";
+    const progress = getProjectProgress(projectId);
     if (progress === 100) return "Ready for Review";
-    if (progress > 0) return "In Progress";
-    return "Not Started";
+    return "In Progress"; // Changed from "Not Started" to "In Progress" as default
   };
 
   // Filter projects based on active tab
@@ -193,7 +273,7 @@ export default function DashboardHome() {
     switch (activeTab) {
       case "review":
         return projects.filter((project: any) => {
-          const progress = getProjectProgress(project.tasks);
+          const progress = getProjectProgress(project.id);
           return progress === 100 && project.status !== "Completed";
         });
       case "completed":
@@ -202,7 +282,7 @@ export default function DashboardHome() {
         });
       default:
         return projects.filter((project: any) => {
-          const progress = getProjectProgress(project.tasks);
+          const progress = getProjectProgress(project.id);
           return progress < 100 && project.status !== "Completed";
         });
     }
@@ -211,7 +291,8 @@ export default function DashboardHome() {
   const filteredProjects = getFilteredProjects();
 
   // Default priority for projects since API doesn't provide it
-  const getProjectPriority = (tasks: any[]): Priority => {
+  const getProjectPriority = (projectId: number): Priority => {
+    const tasks = projectTasks[projectId] || [];
     if (tasks.some((t: any) => t.priority === "High")) return "High";
     if (tasks.some((t: any) => t.priority === "Medium")) return "Medium";
     return "Low";
@@ -219,8 +300,8 @@ export default function DashboardHome() {
 
   const priorityOrder: Record<Priority, number> = { High: 0, Medium: 1, Low: 2 };
   const sortedProjects = filteredProjects.sort((a: any, b: any) => {
-    const aPriority = getProjectPriority(a.tasks);
-    const bPriority = getProjectPriority(b.tasks);
+    const aPriority = getProjectPriority(a.id);
+    const bPriority = getProjectPriority(b.id);
     
     if (priorityOrder[aPriority] !== priorityOrder[bPriority]) {
       return priorityOrder[aPriority] - priorityOrder[bPriority];
@@ -242,7 +323,7 @@ export default function DashboardHome() {
                   : "text-muted-foreground hover:text-primary"
               }`}
             >
-              Projects ({projects.filter(p => getProjectProgress(p.tasks) < 100 && p.status !== "Completed").length})
+              Projects ({projects.filter(p => getProjectProgress(p.id) < 100 && p.status !== "Completed").length})
             </button>
             <button
               onClick={() => setActiveTab("review")}
@@ -252,7 +333,7 @@ export default function DashboardHome() {
                   : "text-muted-foreground hover:text-primary"
               }`}
             >
-              Review ({projects.filter(p => getProjectProgress(p.tasks) === 100 && p.status !== "Completed").length})
+              Review ({projects.filter(p => getProjectProgress(p.id) === 100 && p.status !== "Completed").length})
             </button>
             <button
               onClick={() => setActiveTab("completed")}
@@ -267,14 +348,6 @@ export default function DashboardHome() {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <Button
-            onClick={loadData}
-            disabled={loading}
-            variant="outline"
-            size="sm"
-          >
-            {loading ? "Loading..." : "Refresh"}
-          </Button>
           <Button asChild>
             <Link href="/dashboard/projects/new">
               <Plus className="h-4 w-4 mr-2" />
@@ -323,15 +396,15 @@ export default function DashboardHome() {
                     </span>
                     <span className={`text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 ${
                       project.status === "Completed" ? 'bg-green-100 text-green-700' :
-                      getProjectStatus(project.tasks) === "Ready for Review" ? 'bg-yellow-100 text-yellow-700' :
-                      getProjectStatus(project.tasks) === "In Progress" ? 'bg-blue-100 text-blue-700' :
+                      getProjectStatus(project.id) === "Ready for Review" ? 'bg-yellow-100 text-yellow-700' :
+                      getProjectStatus(project.id) === "In Progress" ? 'bg-blue-100 text-blue-700' :
                       'bg-gray-100 text-gray-700'
                     }`}>
                       {project.status === "Completed" ? <CheckCircle className="h-3 w-3" /> :
-                       getProjectStatus(project.tasks) === "Ready for Review" ? <AlertCircle className="h-3 w-3" /> :
-                       getProjectStatus(project.tasks) === "In Progress" ? <PlayCircle className="h-3 w-3" /> :
+                       getProjectStatus(project.id) === "Ready for Review" ? <AlertCircle className="h-3 w-3" /> :
+                       getProjectStatus(project.id) === "In Progress" ? <PlayCircle className="h-3 w-3" /> :
                        <Clock className="h-3 w-3" />}
-                      {project.status === "Completed" ? "Completed" : getProjectStatus(project.tasks)}
+                      {project.status === "Completed" ? "Completed" : getProjectStatus(project.id)}
                     </span>
                   </div>
                   {activeTab !== "review" && (
@@ -357,58 +430,113 @@ export default function DashboardHome() {
                     {project.description || 'No description'}
                   </p>
                   
-                  {/* Progress Section */}
+                  {/* Enhanced Multi-Segment Progress Section */}
                   <div className="mb-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-medium text-muted-foreground">Progress</span>
-                      <span className="text-xs font-medium">{getProjectProgress(project.tasks)}%</span>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-muted-foreground">Task Progress</span>
+                      <span className="text-xs font-medium">{getTaskStats(project.id).completed} of {getTaskStats(project.id).total} tasks</span>
                     </div>
-                    <Progress value={getProjectProgress(project.tasks)} className="h-2" />
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-xs text-muted-foreground">
-                        {project.tasks.filter((t: any) => t.status === "Done").length} of {project.tasks.length} tasks
-                      </span>
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                        project.status === "Completed" ? "bg-green-100 text-green-700" :
-                        getProjectStatus(project.tasks) === "Ready for Review" ? "bg-yellow-100 text-yellow-700" :
-                        getProjectStatus(project.tasks) === "In Progress" ? "bg-blue-100 text-blue-700" :
-                        "bg-gray-100 text-gray-700"
-                      }`}>
-                        {project.status === "Completed" ? "Completed" : getProjectStatus(project.tasks)}
-                      </span>
-                    </div>
+                    
+                    {/* Multi-Segment Progress Bar */}
+                    {getTaskStats(project.id).total > 0 ? (
+                      <div className="relative">
+                        {/* Background container */}
+                        <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                          {/* Progress segments - ordered: Todo (Gray), In Progress (Blue), Completed (Green) */}
+                          <div className="flex h-full w-full">
+                            {/* Todo (Gray) - always left */}
+                            <div 
+                              className="bg-gray-400 transition-all duration-500 ease-out"
+                              style={{ width: `${getProgressSegments(project.id).todoPercent}%` }}
+                            ></div>
+                            {/* In Progress (Blue) - always middle */}
+                            <div 
+                              className="bg-blue-500 transition-all duration-500 ease-out"
+                              style={{ width: `${getProgressSegments(project.id).inProgressPercent}%` }}
+                            ></div>
+                            {/* Completed (Green) - always right */}
+                            <div 
+                              className="bg-green-500 transition-all duration-500 ease-out"
+                              style={{ width: `${getProgressSegments(project.id).completedPercent}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                        {/* Progress percentage overlay */}
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-xs font-medium text-white drop-shadow-sm">
+                            {getProjectProgress(project.id)}%
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-full bg-gray-200 rounded-full h-3 flex items-center justify-center">
+                        <span className="text-xs text-gray-500">No tasks</span>
+                      </div>
+                    )}
+
+                    {/* Task Breakdown Legend */}
+                    {getTaskStats(project.id).total > 0 && (
+                      <div className="flex gap-4 text-xs mt-2">
+                                                <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 rounded-full bg-gray-400"></div>
+                          <span className="font-medium text-gray-600">{getTaskStats(project.id).todo} Todo</span>
+                        </div>
+                                                <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                          <span className="font-medium text-blue-700">{getTaskStats(project.id).inProgress} In Progress</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                          <span className="font-medium text-green-700">{getTaskStats(project.id).completed} Done</span>
+                        </div>
+
+
+                      </div>
+                    )}
+
                   </div>
                 </Link>
                 
                 {/* Tasks Dropdown */}
                 <details className="w-full" onClick={(e) => e.stopPropagation()}>
                   <summary className="flex items-center justify-between cursor-pointer text-sm mb-2">
-                    <span className="font-medium">Tasks ({project.tasks.length})</span>
+                    <span className="font-medium">Tasks ({getTaskStats(project.id).total})</span>
                     <ChevronDown className="h-4 w-4" />
                   </summary>
                   <ul className="space-y-1">
-                    {project.tasks.length > 0 ? (
-                      project.tasks.map((task: any) => (
+                    {projectTasks[project.id]?.length > 0 ? (
+                      projectTasks[project.id].map((task: any) => (
                         <li key={task.id} className="flex items-center justify-between text-xs p-2 bg-gray-50 dark:bg-gray-800 rounded">
                           <div className="flex items-center gap-2">
                             <span className={`w-2 h-2 rounded-full ${
-                              task.status === 'Completed' ? 'bg-green-500' : 
+                              task.status === 'Done' ? 'bg-green-500' : 
                               task.status === 'In Progress' ? 'bg-blue-500' : 
                               'bg-gray-400'
                             }`}></span>
-                            <span className={`truncate ${task.status === 'Completed' ? 'line-through text-muted-foreground' : ''}`}>
-                              {task.title}
+                            <span className={`truncate ${task.status === 'Done' ? 'line-through text-muted-foreground' : ''}`}>
+                              {task.name}
                             </span>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <span className={`text-xs px-1 py-0.5 rounded text-white font-medium ${
                               task.priority === 'High' ? 'bg-red-500' : 
                               task.priority === 'Medium' ? 'bg-yellow-500' : 
+                              task.priority === 'Critical' ? 'bg-purple-500' :
                               'bg-gray-500'
                             }`}>
-                              {task.priority}
+                              {task.priority === 'High' && '🔥'}
+                              {task.priority === 'Medium' && '⚡'}
+                              {task.priority === 'Low' && '📝'}
+                              {task.priority === 'Critical' && '🚨'}
                             </span>
-                            <span className="text-muted-foreground">{task.due}</span>
+                            {task.assignee && (
+                              <span className="text-muted-foreground">@{task.assignee}</span>
+                            )}
+                            {task.due_date && (
+                              <span className="text-muted-foreground">
+                                {new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </span>
+                            )}
                           </div>
                         </li>
                       ))

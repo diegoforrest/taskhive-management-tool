@@ -85,10 +85,15 @@ export const authApi = {
   }): Promise<any> => {
     console.log('Real API create project request:', projectData);
     
-    return await apiRequest('/test02/create_project', {
+    const res = await apiRequest('/test02/create_project', {
       method: 'POST',
       body: JSON.stringify(projectData),
     });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('projectCreated'))
+      window.dispatchEvent(new Event('projectsUpdated'))
+    }
+    return res
   },
 
   getProjects: async (user_id: number): Promise<any> => {
@@ -108,18 +113,28 @@ export const authApi = {
   }): Promise<any> => {
     console.log('Real API update project request:', { projectId, updateData });
     
-    return await apiRequest(`/test04/update_project/${projectId}`, {
+    const res = await apiRequest(`/test04/update_project/${projectId}`, {
       method: 'POST',
       body: JSON.stringify(updateData),
     });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('projectUpdated'))
+      window.dispatchEvent(new Event('projectsUpdated'))
+    }
+    return res
   },
 
   deleteProject: async (projectId: number): Promise<any> => {
     console.log('Real API delete project request:', projectId);
     
-    return await apiRequest(`/test09/delete_project/${projectId}`, {
+    const res = await apiRequest(`/test09/delete_project/${projectId}`, {
       method: 'POST',
     });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('projectDeleted'))
+      window.dispatchEvent(new Event('projectsUpdated'))
+    }
+    return res
   },
 
   getProject: async (projectId: number, user_id: number): Promise<any> => {
@@ -151,10 +166,15 @@ export const authApi = {
   }): Promise<any> => {
     console.log('Real API create task request:', taskData);
     
-    return await apiRequest('/test05/create_task', {
+    const res = await apiRequest('/test05/create_task', {
       method: 'POST',
       body: JSON.stringify(taskData),
     });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('taskCreated'))
+      window.dispatchEvent(new Event('tasksUpdated'))
+    }
+    return res
   },
 
   getTasks: async (project_id: number): Promise<any> => {
@@ -168,9 +188,14 @@ export const authApi = {
   deleteTask: async (taskId: number): Promise<any> => {
     console.log('Real API delete task request:', taskId);
     
-    return await apiRequest(`/test07/delete_task/${taskId}`, {
+    const res = await apiRequest(`/test07/delete_task/${taskId}`, {
       method: 'POST',
     });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('taskDeleted'))
+      window.dispatchEvent(new Event('tasksUpdated'))
+    }
+    return res
   },
 
   updateTask: async (taskId: number, updateData: {
@@ -183,10 +208,15 @@ export const authApi = {
   }): Promise<any> => {
     console.log('Real API update task request:', taskId, updateData);
     
-    return await apiRequest(`/test08/update_task/${taskId}`, {
+    const res = await apiRequest(`/test08/update_task/${taskId}`, {
       method: 'POST',
       body: JSON.stringify(updateData),
     });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('taskUpdated'))
+      window.dispatchEvent(new Event('tasksUpdated'))
+    }
+    return res
   },
 };
 
@@ -360,7 +390,12 @@ export const tasksApi = {
       updatedAt: new Date().toISOString()
     };
     
-    return { success: true, data: mockTasks[taskIndex] };
+    const res = { success: true, data: mockTasks[taskIndex] };
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('taskUpdated'))
+      window.dispatchEvent(new Event('tasksUpdated'))
+    }
+    return res;
   },
 
   // Get all projects

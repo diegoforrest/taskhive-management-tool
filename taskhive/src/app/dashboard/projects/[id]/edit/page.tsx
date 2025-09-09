@@ -89,7 +89,7 @@ export default function EditProjectPage() {
       if (response.success) {
         // Trigger sidebar refresh
         window.dispatchEvent(new Event('projectUpdated'));
-        
+
         // Redirect to project page after successful update
         router.push(`/dashboard/projects/${projectId}`);
       } else {

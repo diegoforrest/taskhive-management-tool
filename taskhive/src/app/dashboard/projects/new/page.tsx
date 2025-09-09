@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -12,11 +12,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ArrowLeft, Calendar, Users, Target } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { authApi } from "@/lib/api";
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function NewProjectPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -29,13 +32,13 @@ export default function NewProjectPage() {
     
     if (!user?.user_id) {
       console.error('No user or user_id found in auth context:', user);
-      alert('You must be logged in to create a project. Please log in first.');
+      setErrorMessage('You must be logged in to create a project. Please log in first.');
       router.push('/auth/sign-in');
       return;
     }
 
     if (!formData.name.trim()) {
-      alert('Project name is required');
+      setErrorMessage('Project name is required');
       return;
     }
 
@@ -54,14 +57,14 @@ export default function NewProjectPage() {
       numericUserId = user.user_id;
     } else {
       console.error('Invalid user_id type:', typeof user.user_id, user.user_id);
-      alert('Invalid user ID format. Please log out and log back in.');
+      setErrorMessage('Invalid user ID format. Please log out and log back in.');
       return;
     }
     
     // Validate the parsed number
     if (isNaN(numericUserId) || numericUserId <= 0) {
       console.error('Cannot convert user_id to valid number:', user.user_id, '-> NaN or invalid');
-      alert(`Invalid user ID: "${user.user_id}". Please log out and log back in.`);
+      setErrorMessage(`Invalid user ID: "${user.user_id}". Please log out and log back in.`);
       return;
     }
 
@@ -90,9 +93,9 @@ export default function NewProjectPage() {
       
       // Dispatch custom event to trigger sidebar refresh
       window.dispatchEvent(new CustomEvent('projectCreated', { detail: result }));
-      
-      alert(`Project created successfully!`);
-      
+
+      setSuccessMessage('Project created successfully!');
+
       // Small delay to ensure the project is saved and sidebar refreshes
       setTimeout(() => {
         router.push("/dashboard");
@@ -102,9 +105,9 @@ export default function NewProjectPage() {
       console.error("Error creating project:", error);
       // Show more detailed error message
       if (error instanceof Error) {
-        alert(`Failed to create project: ${error.message}`);
+        setErrorMessage(`Failed to create project: ${error.message}`);
       } else {
-        alert("Failed to create project. Please try again.");
+        setErrorMessage("Failed to create project. Please try again.");
       }
     } finally {
       setIsLoading(false);
@@ -114,6 +117,15 @@ export default function NewProjectPage() {
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
+
+  useEffect(() => {
+    if (!successMessage && !errorMessage) return;
+    const t = setTimeout(() => {
+      setSuccessMessage('');
+      setErrorMessage('');
+    }, 3500);
+    return () => clearTimeout(t);
+  }, [successMessage, errorMessage]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -136,6 +148,16 @@ export default function NewProjectPage() {
 
       {/* Form */}
       <div className="p-6 max-w-2xl mx-auto">
+        {successMessage && (
+          <Alert className="border-green-200 bg-green-50 text-green-800 mb-4">
+            <AlertDescription>{successMessage}</AlertDescription>
+          </Alert>
+        )}
+        {errorMessage && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertDescription>{errorMessage}</AlertDescription>
+          </Alert>
+        )}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

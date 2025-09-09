@@ -419,14 +419,7 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
                 <h2 className="font-bold text-base sm:text-lg text-gray-800">
                   {column.title}
                 </h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowNewItemForm(column.id)}
-                  className="h-7 w-7 sm:h-8 sm:w-8 p-0"
-                >
-                  <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
-                </Button>
+
               </div>
               
               <div className="flex space-x-2 text-xs sm:text-sm text-gray-600">

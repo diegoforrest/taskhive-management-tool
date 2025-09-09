@@ -1,41 +1,70 @@
 "use client";
 
-import { Suspense } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import ReviewDashboard from "@/components/review/review-dashboard";
+import { useAuth } from '@/lib/auth-context';
+import { authApi } from '@/lib/api';
 
 function ReviewPageContent() {
   const searchParams = useSearchParams();
   const projectId = searchParams.get('projectId');
+  const { user, isAuthenticated } = useAuth();
+  const [reviewProjects, setReviewProjects] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Mock project data - in real app this would come from API
-  const mockProjects = [
-    { 
-      id: 2, 
-      title: "Soon Due Project", 
-      priority: "Medium", 
-      due: "2025-09-09",
-      tasks: [
-        { id: 4, title: "Market Research", status: "Completed", priority: "Medium", due: "2025-09-07" },
-        { id: 5, title: "Competitor Analysis", status: "Completed", priority: "Low", due: "2025-09-08" },
-        { id: 6, title: "Strategy Planning", status: "Completed", priority: "High", due: "2025-09-09" }
-      ]
-    },
-    { 
-      id: 6, 
-      title: "Urgent Project", 
-      priority: "High", 
-      due: "2025-09-08",
-      tasks: [
-        { id: 13, title: "Bug Fix", status: "Completed", priority: "High", due: "2025-09-08" }
-      ]
-    },
-  ];
+  useEffect(() => {
+    // Load projects for the current user when authenticated
+    if (!isAuthenticated) {
+      // If not authenticated yet, keep empty and stop loading
+      setReviewProjects([]);
+      setLoading(false);
+      return;
+    }
 
-  // Filter projects based on projectId if provided
-  const reviewProjects = projectId 
-    ? mockProjects.filter(p => p.id.toString() === projectId)
-    : mockProjects;
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        setLoading(true);
+        const userId = (user && (user as any).user_id) ? (user as any).user_id : 1; // assume 1 if missing
+
+        // authApi.getProjects returns an object with { success, data } or raw array depending on backend
+        const projectsRes = await authApi.getProjects(userId);
+        const projects = projectsRes?.data && Array.isArray(projectsRes.data) ? projectsRes.data : (Array.isArray(projectsRes) ? projectsRes : []);
+
+        // Fetch tasks for each project in parallel
+        const projectsWithTasks = await Promise.all(
+          projects.map(async (p: any) => {
+            try {
+              const tasksRes = await authApi.getTasks(p.id);
+              const tasks = tasksRes?.data && Array.isArray(tasksRes.data) ? tasksRes.data : (Array.isArray(tasksRes) ? tasksRes : []);
+              return { ...p, tasks };
+            } catch (e) {
+              console.error('Failed to load tasks for project', p.id, e);
+              return { ...p, tasks: [] };
+            }
+          })
+        );
+
+        if (!cancelled) {
+          const filtered = projectId ? projectsWithTasks.filter((p: any) => p.id.toString() === projectId) : projectsWithTasks;
+          setReviewProjects(filtered);
+        }
+      } catch (error) {
+        console.error('Failed to load projects for review page:', error);
+        if (!cancelled) setReviewProjects([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    load();
+
+    return () => { cancelled = true };
+  }, [isAuthenticated, user, projectId]);
+
+  if (loading) return <div className="p-6">Loading review projects...</div>;
 
   return <ReviewDashboard reviewProjects={reviewProjects} />;
 }
