@@ -36,6 +36,8 @@ export default function DashboardHome() {
   const [note, setNote] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectTasks, setProjectTasks] = useState<Record<number, Task[]>>({});
+  // track which project's <details> dropdown is open so we can rotate the chevron
+  const [detailsOpenMap, setDetailsOpenMap] = useState<Record<number, boolean>>({});
   // map taskId -> latest changelog (new_status, remark, createdAt) used on review tab
   const [taskChangeMap, setTaskChangeMap] = useState<Record<number, { new_status?: string; remark?: string; createdAt?: string } | null>>({});
   const [loading, setLoading] = useState(true);
@@ -145,6 +147,15 @@ export default function DashboardHome() {
     console.log('Dashboard mounted, loading data...');
     loadData();
   }, [loadData]);
+
+  const handleDetailsToggle = useCallback((projectId: number, e: any) => {
+    try {
+      const el = e.currentTarget as HTMLDetailsElement;
+      setDetailsOpenMap(prev => ({ ...prev, [projectId]: !!el.open }));
+    } catch (err) {
+      // ignore
+    }
+  }, []);
 
   // When Review tab active, fetch latest changelog for each task so we can show a status icon
   useEffect(() => {
@@ -664,10 +675,10 @@ export default function DashboardHome() {
                 </Link>
                 
                 {/* Tasks Dropdown */}
-                <details className="w-full" onClick={(e) => e.stopPropagation()}>
+        <details className="w-full" onClick={(e) => e.stopPropagation()} onToggle={(e) => handleDetailsToggle(project.id, e)}>
                   <summary className="flex items-center justify-between cursor-pointer text-sm mb-2">
                     <span className="font-medium">Tasks ({getTaskStats(project.id).total})</span>
-                    <ChevronDown className="h-4 w-4" />
+          <ChevronDown className={`h-4 w-4 transform transition-transform duration-150 ${detailsOpenMap[project.id] ? 'rotate-0' : '-rotate-90'}`} />
                   </summary>
                   <ul className="space-y-1">
                     {(projectTasks[project.id] || []).length > 0 ? (

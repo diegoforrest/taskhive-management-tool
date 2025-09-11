@@ -6,7 +6,7 @@
 import * as React from "react"
 import { useTheme } from "next-themes"
 import { useRouter } from "next/navigation"
-import { Sun, Moon, Laptop, Search, User2, Settings, LogOut, Loader2, Calendar } from "lucide-react"
+import { Sun, Moon, Laptop, Search, User2, Settings, LogOut, Loader2, Calendar, HelpCircle } from "lucide-react"
 import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
@@ -22,23 +22,21 @@ import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { useAuth } from "@/lib/auth-context"
 import { useSearch } from "@/lib/search-context"
-import { tasksApi } from "@/lib/api"
-// Lightweight UI-facing task shape that covers backend and legacy fields
-type TaskLike = {
-  id: number;
-  name?: string;
-  title?: string;
-  contents?: string;
-  description?: string;
-  status?: string;
-  priority?: string;
-  assignee?: string;
-  due_date?: string | undefined;
-  dueDate?: string | undefined;
-  type?: string;
-}
+import { tasksApi, authApi } from "@/lib/api"
+  // Lightweight UI-facing project shape used for search results
+  type ProjectLike = {
+    id: number;
+    name?: string;
+    description?: string;
+    status?: string;
+    priority?: string;
+    due_date?: string | undefined;
+    user_id?: number;
+    createdAt?: string;
+  }
 
 export function TopBar() {
   // Hydration fix: only render theme toggle after mount
@@ -50,7 +48,7 @@ export function TopBar() {
   const router = useRouter()
   const [searchOpen, setSearchOpen] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState("")
-  const [searchResults, setSearchResults] = React.useState<TaskLike[]>([])
+  const [searchResults, setSearchResults] = React.useState<ProjectLike[]>([])
   const [isSearching, setIsSearching] = React.useState(false)
   
   const handleLogout = () => {
@@ -123,34 +121,54 @@ export function TopBar() {
 
   // Search functionality
   const performSearch = React.useCallback(async (query: string) => {
-    if (!query.trim() || !isAuthenticated) {
+    if (!query.trim() || !isAuthenticated || !user?.user_id) {
       setSearchResults([])
       return
     }
 
     setIsSearching(true)
     try {
-      // Get all tasks and filter locally for now
-      // In a real app, you'd want server-side search
-      const allTasks = await tasksApi.getAllTasks() as TaskLike[]
-      const filtered = allTasks.filter((task: TaskLike) => {
-        const title = (task.name || task.title || '').toString().toLowerCase()
-        const desc = (task.contents || task.description || '').toString().toLowerCase()
-        const assignee = (task.assignee || '').toString().toLowerCase()
-        return (
-          title.includes(query.toLowerCase()) ||
-          desc.includes(query.toLowerCase()) ||
-          assignee.includes(query.toLowerCase())
-        )
-      })
-      setSearchResults(filtered)
+      // Fetch projects for current user from real API
+      const projectsRaw = await authApi.getProjects(typeof user.user_id === 'number' ? user.user_id : parseInt(user.user_id));
+      const projects = (projectsRaw && typeof projectsRaw === 'object' && 'data' in (projectsRaw as any)) ? (projectsRaw as any).data || [] : (Array.isArray(projectsRaw) ? projectsRaw : []);
+
+      const q = query.toLowerCase();
+
+      // Only match project name or due date (ISO or formatted)
+      const augmented = (projects || []).map((p: any) => {
+        // Normalize/choose a human-friendly name. Backend may use different fields
+        // or accidentally return a numeric name — coerce to string when needed.
+        const rawName = p.name ?? p.project_name ?? p.title ?? (p.id ? String(p.id) : undefined);
+        const name = typeof rawName === 'number' ? String(rawName) : rawName;
+        const displayName = (name && String(name).trim()) ? String(name) : `Project ${p.id}`;
+
+        return {
+          id: p.id,
+          name: displayName,
+          description: p.description ?? p.contents ?? p.description,
+          status: p.status,
+          priority: p.priority,
+          due_date: p.due_date ?? p.dueDate,
+          createdAt: p.createdAt,
+        } as ProjectLike;
+      });
+
+      const filtered = augmented.filter((p: ProjectLike) => {
+        const name = (p.name || '').toLowerCase();
+  const dueIso = (p.due_date || p.createdAt || '').toString();
+  const dueFormatted = dueIso ? new Date(dueIso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).replace(',', '').toLowerCase() : '';
+  const due = (dueIso + ' ' + dueFormatted).toLowerCase();
+        return name.includes(q) || due.includes(q);
+      });
+
+      setSearchResults(filtered);
     } catch (error) {
       console.error('Search error:', error)
       setSearchResults([])
     } finally {
       setIsSearching(false)
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, user?.user_id])
 
   // Debounced search
   React.useEffect(() => {
@@ -162,60 +180,13 @@ export function TopBar() {
   }, [searchQuery, performSearch])
 
   // Handle search result click
-  const handleResultClick = (task: TaskLike) => {
+  const handleResultClick = (project: ProjectLike) => {
     setSearchOpen(false)
     setSearchQuery("")
     setSearchResults([])
-    
-    // Highlight the task in the kanban board
-    setHighlightedTaskId(task.id)
-    
-    // Navigate to task page first
-    router.push('/task')
-    
-    // After navigation, scroll to the specific column where the task is located
-    setTimeout(() => {
-      // Map task status to column IDs - must match the column structure
-      const columnMapping = {
-        'Todo': 'todo-column',
-        'In Progress': 'in-progress-column', 
-        'Completed': 'completed-column'
-      }
-      
-      const columnId = columnMapping[task.status as keyof typeof columnMapping]
-      if (columnId) {
-        const columnElement = document.getElementById(columnId)
-        if (columnElement) {
-          // Scroll to the column with smooth animation
-          columnElement.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'start',
-            inline: 'center' 
-          })
-          
-          // On mobile, ensure better visibility
-          if (window.innerWidth < 768) {
-            setTimeout(() => {
-              columnElement.scrollIntoView({ 
-                behavior: 'smooth', 
-                block: 'center',
-                inline: 'start' 
-              })
-            }, 100)
-          }
-          
-          // Add a temporary glow effect to the column
-          columnElement.style.transition = 'box-shadow 0.5s ease-in-out'
-          columnElement.style.boxShadow = '0 0 20px rgba(59, 130, 246, 0.5)'
-          setTimeout(() => {
-            columnElement.style.boxShadow = ''
-          }, 2000)
-        }
-      }
-      
-      // Clear highlight after 5 seconds (increased for better visibility)
-      setTimeout(() => setHighlightedTaskId(null), 5000)
-    }, 500) // Wait for page navigation to complete
+
+    // Navigate directly to the project page
+    router.push(`/dashboard/projects/${project.id}`)
   }
 
   // Handle search input click
@@ -360,7 +331,7 @@ export function TopBar() {
             <div className="flex items-center space-x-2">
               <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <Input
-                placeholder="Search projects, tasks and assignee..."
+                placeholder="Search project titles or due dates..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="flex-1 border-0 px-0 focus-visible:ring-0 focus-visible:ring-offset-0"
@@ -374,14 +345,27 @@ export function TopBar() {
             {searchQuery.trim() === '' ? (
               <div className="px-4 sm:px-6 py-6 sm:py-8 text-center text-sm text-muted-foreground">
                 <Search className="mx-auto h-6 w-6 sm:h-8 sm:w-8 mb-2 opacity-50" />
-                <p>Start typing to search your projects and tasks</p>
+                <p>Start typing to search your project titles or project due date</p>
                 <div className="text-xs mt-2 space-y-1">
                   <p>Search by:</p>
-                  <div className="flex items-center justify-center flex-wrap gap-2 sm:gap-4 text-xs">
-                    <span>• Task titles</span>
-                    <span>• Descriptions</span>
-                    <span>• Assignee names</span>
-                  </div>
+                    <div className="flex items-center justify-center flex-wrap gap-2 sm:gap-4 text-xs">
+                      <span>• Project titles</span>
+                      <span className="inline-flex items-center gap-2">
+                        <span>• Due dates</span>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button aria-label="Due date search help" className="inline-flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:bg-muted/50 focus:outline-none">
+                              <HelpCircle className="h-4 w-4" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <div className="max-w-xs text-left">
+                              Search by full date (e.g. "Sep 11 2025") or ISO ("2025-09-11"). Partial matches like "Sep 2025" also work.
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </span>
+                    </div>
                 </div>
               </div>
             ) : searchResults.length === 0 && !isSearching ? (
@@ -395,41 +379,32 @@ export function TopBar() {
                 <div className="px-4 sm:px-6 py-2 text-xs font-medium text-muted-foreground border-b">
                   {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} found
                 </div>
-                {searchResults.map((task: TaskLike) => (
+                {searchResults.map((project: ProjectLike) => (
                   <button
-                    key={task.id}
-                    onClick={() => handleResultClick(task)}
+                    key={project.id}
+                    onClick={() => handleResultClick(project)}
                     className="w-full px-4 sm:px-6 py-3 text-left hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground outline-none transition-colors"
                   >
                     <div className="flex items-start space-x-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center flex-wrap gap-2 mb-1">
-                          <p className="font-medium text-sm truncate min-w-0 flex-1">{task.name || task.title}</p>
+                          <p className="font-medium text-sm truncate min-w-0 flex-1">{project.name}</p>
                           <div className="flex items-center gap-1 flex-shrink-0">
-                            <Badge variant={(task.type || '').toString() === 'project' ? 'secondary' : 'outline'} className="text-xs">
-                              {(task.type || '').toString().toUpperCase()}
-                            </Badge>
-                            <Badge 
-                              variant={task.priority === 'High' ? 'destructive' : task.priority === 'Medium' ? 'secondary' : 'outline'}
-                              className="text-xs"
-                            >
-                              {task.priority}
+                            <Badge variant={project.priority === 'High' ? 'destructive' : project.priority === 'Medium' ? 'secondary' : 'outline'} className="text-xs">
+                              {project.priority}
                             </Badge>
                           </div>
                         </div>
-                        {(task.contents || task.description) && (
-                          <p className="text-xs text-muted-foreground truncate mb-1">{task.contents || task.description}</p>
+                        {project.description && (
+                          <p className="text-xs text-muted-foreground truncate mb-1">{project.description}</p>
                         )}
                         <div className="flex items-center flex-wrap gap-2 sm:gap-3 text-xs text-muted-foreground">
-                          <span className="capitalize">{task.status}</span>
-                          {task.assignee && <span className="truncate">Assigned to {task.assignee}</span>}
-                          {(task.due_date || task.dueDate) && (
+                          <span className="capitalize">{project.status}</span>
+                          {/* assignees removed from search results - search now matches only project name and due date */}
+                          {project.due_date && (
                             <span className="flex items-center flex-shrink-0">
                               <Calendar className="h-3 w-3 mr-1" />
-                              {(() => {
-                                const d = task.due_date || task.dueDate
-                                return d ? `Due ${new Date(d).toLocaleDateString('en-US')}` : null
-                              })()}
+                              {`Due ${new Date(project.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).replace(',', '')}`}
                             </span>
                           )}
                         </div>
