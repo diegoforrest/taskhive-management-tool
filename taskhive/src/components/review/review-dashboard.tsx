@@ -409,19 +409,19 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
       }
 
       // Mark the project status as Completed in the backend
-      try {
-        await authApi.updateProject(projectId, { status: 'Completed' });
-        setShowToast({ message: 'Project approved and marked Completed', type: 'success' });
-        // Navigate back to dashboard after successful approval to avoid staying on a stale review page
         try {
-          // small delay so the success toast is visible
-          setTimeout(() => {
-            try { router.replace('/dashboard'); } catch (navErr) { console.warn('Failed to navigate after approval', navErr); }
-          }, 450);
-        } catch (navErr) {
-          console.warn('Failed to schedule navigation after approval', navErr);
-        }
-      } catch (e) {
+          await authApi.updateProject(projectId, { status: 'Completed' });
+          setShowToast({ message: 'Project approved and marked Completed', type: 'success' });
+          // Navigate to the project's detail page after successful approval
+          try {
+            // small delay so the success toast is visible
+            setTimeout(() => {
+              try { router.replace(`/dashboard/completed/${projectId}`); } catch (navErr) { console.warn('Failed to navigate after approval', navErr); }
+            }, 450);
+          } catch (navErr) {
+            console.warn('Failed to schedule navigation after approval', navErr);
+          }
+        } catch (e) {
         console.warn('Failed to update project status to Completed', projectId, e);
         setShowToast({ message: 'Failed to update project status', type: 'error' });
       }
@@ -559,7 +559,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-0">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 lg:gap-6">
             <Button variant="ghost" size="sm" asChild className="w-fit">
-              <Link href="/dashboard">
+              <Link href="/dashboard?tab=review">
                 <ArrowLeft className="h-4 w-4 mr-1" />
                 <span className="hidden sm:inline">Back to Dashboard</span>
                 <span className="sm:hidden">Back</span>

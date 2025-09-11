@@ -4,17 +4,19 @@ import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronDown, List, Plus, Clock, AlertCircle, PlayCircle, CheckCircle, Calendar, Funnel } from "lucide-react";
+import { ChevronDown, List, Plus, Clock, AlertCircle, PlayCircle, CheckCircle, Calendar, Funnel, XCircle, Pause } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import ClientDate from "@/components/ui/client-date"
 import CalendarPicker from "@/components/ui/calendar"
 import { tasksApi, authApi, Task, Project, ApiResponse } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { useRouter, useSearchParams } from 'next/navigation';
 
 // Type guard for ApiResponse-like objects that contain a `data` property
 function hasData<T>(v: unknown): v is { data: T } {
@@ -34,11 +36,37 @@ export default function DashboardHome() {
   const [note, setNote] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectTasks, setProjectTasks] = useState<Record<number, Task[]>>({});
+  // map taskId -> latest changelog (new_status, remark, createdAt) used on review tab
+  const [taskChangeMap, setTaskChangeMap] = useState<Record<number, { new_status?: string; remark?: string; createdAt?: string } | null>>({});
   const [loading, setLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState<'any' | 'today' | 'this_week' | 'overdue' | 'specific'>('any');
   const [specificDate, setSpecificDate] = useState<string | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<'all' | 'High' | 'Medium' | 'Low'>('all');
   const { user } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Keep tab in sync with URL search param `tab` (bookmarkable)
+  useEffect(() => {
+    const param = searchParams?.get('tab') || searchParams?.get('t');
+    if (!param) return;
+    const p = param.toLowerCase();
+    if (p === 'all' || p === 'review' || p === 'completed') {
+      setActiveTab(p as 'all' | 'review' | 'completed');
+    }
+  }, [searchParams]);
+
+  const changeTab = useCallback((tab: 'all' | 'review' | 'completed') => {
+    setActiveTab(tab);
+    try {
+      const params = new URLSearchParams(window.location.search);
+      params.set('tab', tab);
+      const url = `${window.location.pathname}?${params.toString()}`;
+      router.push(url);
+    } catch (e) {
+      console.warn('Failed to update tab in URL', e);
+    }
+  }, [router]);
   
   // Use Task and Project types from the API typings
 
@@ -117,6 +145,44 @@ export default function DashboardHome() {
     console.log('Dashboard mounted, loading data...');
     loadData();
   }, [loadData]);
+
+  // When Review tab active, fetch latest changelog for each task so we can show a status icon
+  useEffect(() => {
+    if (activeTab !== 'review') return;
+
+    let mounted = true;
+    const loadChangelogs = async () => {
+      try {
+        const entries: Record<number, { new_status?: string; remark?: string; createdAt?: string } | null> = {};
+        const allTasks: Task[] = Object.values(projectTasks).flat();
+
+        await Promise.all(allTasks.map(async (task) => {
+          try {
+            const res = await tasksApi.getChangelogs(task.id);
+            const data = (res && typeof res === 'object' && 'data' in (res as any)) ? (res as any).data : (Array.isArray(res) ? res : []);
+            const rows = Array.isArray(data) ? data : [];
+            if (rows.length > 0) {
+              const latest = rows.slice().sort((a: any, b: any) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime())[0];
+              entries[task.id] = { new_status: latest.new_status, remark: latest.remark, createdAt: latest.createdAt };
+            } else {
+              entries[task.id] = null;
+            }
+          } catch (e) {
+            console.warn('Failed to load changelogs for task', task.id, e);
+            entries[task.id] = null;
+          }
+        }));
+
+        if (!mounted) return;
+        setTaskChangeMap(entries);
+      } catch (e) {
+        console.error('Failed to load changelogs for review tab', e);
+      }
+    };
+
+    loadChangelogs();
+    return () => { mounted = false; };
+  }, [activeTab, projectTasks]);
 
   // Reload data when component comes back into focus (useful after creating a project)
   useEffect(() => {
@@ -636,6 +702,80 @@ export default function DashboardHome() {
                               <span className="text-muted-foreground">
                                 {new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                               </span>
+                            )}
+                            {/* Review status icon */}
+                            {activeTab === 'review' && (
+                              (() => {
+                                const info = taskChangeMap[task.id];
+                                if (!info || !info.new_status) return null;
+                                const ns = (info.new_status || '').toLowerCase();
+                                if (ns.includes('request')) {
+                                  return (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span
+                                          role="img"
+                                          aria-label={info.remark ? `Changes requested: ${info.remark}` : 'Changes are requested'}
+                                          className="text-red-600 cursor-pointer"
+                                        >
+                                          <XCircle className="h-4 w-4 hover:scale-105 transition-transform" />
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top">
+                                        <div className="text-xs">Changes are requested, Check it on the review section.</div>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  );
+                                }
+                                // Pending (waiting) state
+                                if (ns.includes('pending') || ns.includes('wait')) {
+                                  return (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="text-gray-600 cursor-pointer">
+                                          <Clock className="h-4 w-4 hover:scale-105 transition-transform" />
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top">
+                                        <div className="text-xs">Pending for review</div>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  );
+                                }
+
+                                // On hold
+                                if (ns.includes('hold')) {
+                                  return (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="text-yellow-600 cursor-pointer">
+                                          <Pause className="h-4 w-4 hover:scale-105 transition-transform" />
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top">
+                                        <div className="text-xs">Task is on hold</div>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  );
+                                }
+
+                                // Approved / completed
+                                if (ns.includes('completed') || ns.includes('approved') || ns.includes('approve')) {
+                                  return (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="text-green-600 cursor-pointer">
+                                          <CheckCircle className="h-4 w-4 hover:scale-105 transition-transform" />
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top">
+                                        <div className="text-xs">Task approved</div>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  );
+                                }
+                                return null;
+                              })()
                             )}
                           </div>
                         </li>

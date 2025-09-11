@@ -57,7 +57,7 @@ export default function ProjectPage() {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-0">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 lg:gap-6">
             <Button variant="ghost" size="sm" asChild className="w-fit">
-              <Link href="/dashboard">
+              <Link href="/dashboard?tab=all">
                 <ArrowLeft className="h-4 w-4 mr-1" />
                 <span className="hidden sm:inline">Back to Dashboard</span>
                 <span className="sm:hidden">Back</span>
