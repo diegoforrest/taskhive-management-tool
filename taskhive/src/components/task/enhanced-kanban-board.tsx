@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { Plus, MoreHorizontal, Calendar, Edit3, Trash2, X, GripVertical, ArrowLeft } from 'lucide-react';
+import { Plus, MoreHorizontal, Calendar, Edit3, Trash2, X, GripVertical, MessageSquare } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,15 +11,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import Link from "next/link";
-import { tasksApi, authApi, Task, CreateTaskRequest, TasksByStatus } from "@/lib/api";
+import { authApi, Task, CreateTaskRequest, Project, tasksApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useSearch } from "@/lib/search-context";
+import ClientDate from "@/components/ui/client-date"
 
 // Type definitions
 type ItemType = 'project' | 'task';
-type ItemStatus = 'Todo' | 'In Progress' | 'Done';  // Changed from 'Completed' to match backend
+type ItemStatus = 'Todo' | 'In Progress' | 'Done';
 type Priority = 'High' | 'Medium' | 'Low' | 'Critical';
+type BadgeVariant = 'destructive' | 'secondary' | 'outline' | 'default';
+type ReviewStatus = 'pending' | 'approved' | 'changes_requested' | 'on_hold';
 
 interface ProjectInfo {
   title: string;
@@ -38,6 +40,83 @@ interface Column {
   bgColor: string;
 }
 
+// Enhanced Task interface to include review information
+interface TaskWithReview extends Task {
+  reviewStatus?: ReviewStatus;
+  lastReviewNotes?: string;
+  needsReview?: boolean;
+  reviewChangeDetails?: string;
+}
+
+// Type for changelog entries returned by backend
+interface ChangeLogEntry {
+  id: number;
+  description?: string;
+  old_status?: string;
+  new_status?: string;
+  remark?: string;
+  user_id?: number;
+  project_id?: number;
+  task_id?: number;
+  createdAt?: string;
+}
+
+// Lightweight typed shape returned by mapChangelogsToReviewInfo
+interface ReviewInfo {
+  reviewStatus: ReviewStatus;
+  lastReviewNotes?: string;
+  needsReview: boolean;
+  reviewChangeDetails?: string;
+}
+
+// Helper to safely extract arrays from varied API response shapes
+const extractDataArray = <T,>(res: unknown): T[] => {
+  if (typeof res === 'object' && res !== null && 'data' in res) {
+    const r = res as Record<string, unknown>;
+    const maybe = r['data'];
+    return Array.isArray(maybe) ? (maybe as T[]) : [];
+  }
+  return Array.isArray(res) ? (res as T[]) : [];
+};
+
+// Map backend changelogs to review data
+const mapChangelogsToReviewInfo = (rows: ChangeLogEntry[]) => {
+  if (rows.length === 0) {
+    return {
+      reviewStatus: 'pending' as ReviewStatus,
+      lastReviewNotes: undefined,
+      needsReview: false,
+      reviewChangeDetails: undefined
+    };
+  }
+
+  // Get the latest changelog entry
+  const latest = rows.slice().sort((a, b) => 
+    new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime()
+  )[0];
+
+  let reviewStatus: ReviewStatus = 'pending';
+  let needsReview = false;
+  const lastReviewNotes = latest.description || latest.remark || '';
+  const reviewChangeDetails = latest.remark || undefined;
+
+  if (latest && latest.new_status) {
+    const ns = (latest.new_status || '').toLowerCase();
+    if (ns === 'request changes') {
+      reviewStatus = 'changes_requested';
+      needsReview = true;
+    } else if (ns === 'on hold') {
+      reviewStatus = 'on_hold';
+      needsReview = true;
+    } else if (ns === 'completed' || ns === 'done') {
+      reviewStatus = 'approved';
+      needsReview = false;
+    }
+  }
+
+  return { reviewStatus, lastReviewNotes, needsReview, reviewChangeDetails };
+};
+
 const columns: Column[] = [
   {
     id: 'Todo',
@@ -52,14 +131,14 @@ const columns: Column[] = [
     bgColor: 'bg-blue-50'
   },
   {
-    id: 'Done',  // Changed from 'Completed'
-    title: 'DONE',  // Changed from 'COMPLETED'
+    id: 'Done',
+    title: 'DONE',
     color: 'border-l-green-500',
     bgColor: 'bg-green-50'
   }
 ];
 
-const priorityConfig: Record<Priority, { color: string; icon: string }> = {
+const priorityConfig: Record<Priority, { color: BadgeVariant; icon: string }> = {
   'Critical': { color: 'destructive', icon: '🚨' },
   'High': { color: 'destructive', icon: '🔥' },
   'Medium': { color: 'secondary', icon: '⚡' },
@@ -71,22 +150,30 @@ const typeConfig: Record<ItemType, { label: string; color: string }> = {
   'task': { label: 'TASK', color: 'bg-blue-100 text-blue-800' }
 };
 
+const reviewStatusConfig = {
+  pending: { label: 'Pending Review', color: 'bg-blue-100 text-blue-800' },
+  approved: { label: 'Approved', color: 'bg-green-100 text-green-800' },
+  changes_requested: { label: 'Changes Requested', color: 'bg-red-100 text-red-800' },
+  on_hold: { label: 'On Hold', color: 'bg-yellow-100 text-yellow-800' }
+};
+
 export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanbanBoardProps = {}) {
   const { user, isAuthenticated } = useAuth();
+  const authApiRef = React.useRef(authApi);
   const { highlightedTaskId } = useSearch();
-  const [tasks, setTasks] = useState<TasksByStatus>({
+  const [tasks, setTasks] = useState<Record<ItemStatus, TaskWithReview[]>>({
     'Todo': [],
     'In Progress': [],
-    'Done': []  // Changed from 'Completed' to 'Done'
+    'Done': []
   });
   const [showNewItemForm, setShowNewItemForm] = useState<string>('');
-  const [selectedItem, setSelectedItem] = useState<Task | null>(null);
-  const [draggedItem, setDraggedItem] = useState<Task | null>(null);
+  const [selectedItem, setSelectedItem] = useState<TaskWithReview | null>(null);
+  const [draggedItem, setDraggedItem] = useState<TaskWithReview | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [errorCountdown, setErrorCountdown] = useState<number>(0);
-  const [projectData, setProjectData] = useState<any>(null);
+  const [projectData, setProjectData] = useState<Project | ProjectInfo | null>(null);
 
   // Function to set error with countdown
   const setErrorWithCountdown = useCallback((message: string) => {
@@ -110,20 +197,49 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
     
     try {
       setLoading(true);
-      const response = await authApi.getTasks(projectId);
-      if (response.success && response.data) {
-        // Group tasks by status
-        const groupedTasks: TasksByStatus = {
-          'Todo': response.data.filter((task: Task) => task.status === 'Todo'),
-          'In Progress': response.data.filter((task: Task) => task.status === 'In Progress'),
-          'Done': response.data.filter((task: Task) => task.status === 'Done'),
-        };
-        setTasks(groupedTasks);
+      const rawResponse = await authApiRef.current.getTasks(projectId);
+      const response = (rawResponse && typeof rawResponse === 'object' && 'data' in (rawResponse as unknown as Record<string, unknown>)) ? (rawResponse as unknown as Record<string, unknown>)['data'] as Task[] : (Array.isArray(rawResponse) ? rawResponse : []);
+      
+      // Enhance tasks with review information
+      const enhancedTasks: TaskWithReview[] = [];
+      
+      for (const task of response) {
+              let reviewInfo: ReviewInfo = {
+                reviewStatus: 'pending',
+                lastReviewNotes: undefined,
+                needsReview: false,
+                reviewChangeDetails: undefined
+              };
+
+        try {
+          // Fetch changelog for each task to get review information
+          const changelogRes = await tasksApi.getChangelogs(task.id);
+          const changelogData = extractDataArray<ChangeLogEntry>(changelogRes);
+          
+          if (changelogData.length > 0) {
+              reviewInfo = mapChangelogsToReviewInfo(changelogData) as ReviewInfo;
+            }
+        } catch (e) {
+          console.warn('Failed to fetch changelog for task', task.id, e);
+        }
+
+        enhancedTasks.push({
+          ...task,
+          ...reviewInfo
+        });
       }
+      
+      // Group tasks by status
+      const groupedTasks: Record<ItemStatus, TaskWithReview[]> = {
+        'Todo': enhancedTasks.filter((task) => task.status === 'Todo'),
+        'In Progress': enhancedTasks.filter((task) => task.status === 'In Progress'),
+        'Done': enhancedTasks.filter((task) => task.status === 'Done'),
+      };
+      
+      setTasks(groupedTasks);
       setError('');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to load tasks:', err);
-      // For demo purposes, use empty state if API fails
       setTasks({
         'Todo': [],
         'In Progress': [],
@@ -134,10 +250,17 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
     }
   }, [projectId]);
 
+  // Keep a ref to loadTasks so other callbacks can call it
+  const loadTasksRef = React.useRef<(() => Promise<void>) | null>(null);
+  useEffect(() => {
+    loadTasksRef.current = loadTasks;
+    return () => { loadTasksRef.current = null; };
+  }, [loadTasks]);
+
   // Load tasks on component mount
   useEffect(() => {
     if (isAuthenticated && projectId) {
-      loadTasks();
+      loadTasksRef.current?.();
     }
   }, [isAuthenticated, projectId, loadTasks]);
 
@@ -145,14 +268,13 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
     if (!projectId || !user?.user_id) return;
     
     try {
-      const response = await authApi.getProject(projectId, user.user_id);
+      const response = await authApiRef.current.getProject(projectId, user.user_id);
       if (response.success && response.data) {
         setProjectData(response.data);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to load project:', err);
-      // Use fallback project data if API fails
-      setProjectData(project || { name: 'Unknown Project', description: '' });
+      setProjectData((project as unknown as Project) || ({ id: -1, user_id: -1, name: 'Unknown Project', description: '' } as Project));
     }
   }, [projectId, user?.user_id, project]);
 
@@ -168,7 +290,7 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
       // Optimistic update
       setTasks(prevTasks => {
         const newTasks = { ...prevTasks };
-        let taskToMove: Task | null = null;
+        let taskToMove: TaskWithReview | null = null;
         
         // Find and remove the task from its current status
         for (const status of Object.keys(newTasks) as ItemStatus[]) {
@@ -190,11 +312,11 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
       });
 
       // Update on backend
-      await authApi.updateTask(taskId, { status: newStatus });
+      await authApiRef.current.updateTask(taskId, { status: newStatus });
     } catch (error) {
       console.error('Failed to move task:', error);
       // Revert optimistic update by reloading tasks
-      loadTasks();
+      loadTasksRef.current?.();
     }
   }, []);
 
@@ -205,7 +327,6 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
     }
 
     try {
-      // Convert frontend form data to backend format
       const backendTaskData = {
         project_id: projectId,
         name: taskData.name,
@@ -215,33 +336,44 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
         assignee: taskData.assignee,
       };
 
-      const response = await authApi.createTask(backendTaskData);
+      const rawResponse = await authApiRef.current.createTask(backendTaskData);
+      const createdRaw = rawResponse;
+      const createdTask: Task = (createdRaw && typeof createdRaw === 'object' && 'data' in (createdRaw as unknown as Record<string, unknown>)) ? (createdRaw as unknown as Record<string, unknown>)['data'] as Task : (createdRaw as Task);
       
-      if (response.success && response.data) {
-        // Add the new task to the appropriate column
-        const newTask: Task = {
-          ...response.data,
-          status: taskData.status || 'Todo'  // Use the column status
+        if (createdTask) {
+        const newTask: TaskWithReview = {
+          ...createdTask,
+          status: (taskData.status as Task['status']) || 'Todo',
+          reviewStatus: 'pending',
+          needsReview: false
         };
-        
-        setTasks(prevTasks => ({
-          ...prevTasks,
-          [newTask.status]: [...prevTasks[newTask.status], newTask]
-        }));
+
+        setTasks(prevTasks => {
+          const key = (newTask.status || 'Todo') as ItemStatus;
+          if (!prevTasks[key]) {
+            return prevTasks; // Unknown status - skip
+          }
+          return {
+            ...prevTasks,
+            [key]: [...(prevTasks[key] ?? []), newTask]
+          };
+        });
         setShowNewItemForm('');
       } else {
-        throw new Error(response.message || 'Failed to create task');
+        throw new Error('Failed to create task');
       }
     } catch (error) {
       console.error('Failed to create task:', error);
       setErrorWithCountdown('Failed to create task. Please try again.');
     }
-  }, [projectId]);
+  }, [projectId, setErrorWithCountdown]);
 
   const deleteTask = useCallback(async (taskId: number): Promise<void> => {
     try {
-      const response = await authApi.deleteTask(taskId);
-      if (response.success) {
+      const rawResponse = await authApiRef.current.deleteTask(taskId);
+      const resp = (rawResponse && typeof rawResponse === 'object' && 'success' in (rawResponse as unknown as Record<string, unknown>)) ? (rawResponse as unknown as Record<string, unknown>) : { success: true };
+      
+      if (resp.success) {
         setTasks(prevTasks => {
           const newTasks = { ...prevTasks };
           for (const status of Object.keys(newTasks) as ItemStatus[]) {
@@ -251,17 +383,16 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
         });
         setSelectedItem(null);
       } else {
-        throw new Error(response.message || 'Failed to delete task');
+        throw new Error('Failed to delete task');
       }
     } catch (error) {
       console.error('Failed to delete task:', error);
       setErrorWithCountdown('Failed to delete task. Please try again.');
     }
-  }, []);
+  }, [setErrorWithCountdown]);
 
-  const updateTask = useCallback(async (updatedTask: Task): Promise<void> => {
+  const updateTask = useCallback(async (updatedTask: TaskWithReview): Promise<void> => {
     try {
-      // Create the update payload with only the fields supported by backend
       const updatePayload = {
         name: updatedTask.name,
         contents: updatedTask.contents,
@@ -271,20 +402,20 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
         assignee: updatedTask.assignee
       };
       
-      const result = await authApi.updateTask(updatedTask.id, updatePayload);
+      const rawResult = await authApiRef.current.updateTask(updatedTask.id, updatePayload);
+      const result = (rawResult && typeof rawResult === 'object' && 'data' in (rawResult as unknown as Record<string, unknown>)) ? (rawResult as unknown as Record<string, unknown>)['data'] as Task : rawResult;
       
-      if (result.success && result.data) {
-        // Update the local state optimistically
+      if (result) {
         setTasks(prevTasks => {
           const newTasks = { ...prevTasks };
-          const updatedTaskData = result.data;
+          const updatedTaskData = { ...updatedTask, ...(result as Task) };
           
           // Remove from all statuses first
           for (const status of Object.keys(newTasks) as ItemStatus[]) {
             newTasks[status] = newTasks[status].filter(task => task.id !== updatedTask.id);
           }
           
-          // Add to the correct status (ensure it's a valid ItemStatus)
+          // Add to the correct status
           const taskStatus = updatedTaskData.status as ItemStatus;
           if (taskStatus && newTasks[taskStatus]) {
             newTasks[taskStatus].push(updatedTaskData);
@@ -298,29 +429,21 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
     } catch (error) {
       console.error('Failed to update task:', error);
       setErrorWithCountdown('Failed to update task. Please try again.');
-      // Reload tasks to revert any optimistic updates
-      loadTasks();
+      loadTasksRef.current?.();
     }
-  }, [loadTasks]);
+  }, [setErrorWithCountdown]);
 
-  // Helper function for mobile move functionality
-  const updateTaskStatus = useCallback(async (task: Task, newStatus: string): Promise<void> => {
+  const updateTaskStatus = useCallback(async (task: TaskWithReview, newStatus: string): Promise<void> => {
     const updatedTask = { ...task, status: newStatus as ItemStatus };
     await updateTask(updatedTask);
   }, [updateTask]);
 
-  const getTasksByStatus = useCallback((status: ItemStatus): Task[] => {
+  const getTasksByStatus = useCallback((status: ItemStatus): TaskWithReview[] => {
     return tasks[status] || [];
   }, [tasks]);
 
-  const formatDate = (dateString?: string): string => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
-
   // Enhanced drag and drop handlers
-  const handleDragStart = (e: React.DragEvent, item: Task): void => {
+  const handleDragStart = (e: React.DragEvent, item: TaskWithReview): void => {
     setDraggedItem(item);
     e.dataTransfer.setData('text/plain', item.id.toString());
     e.dataTransfer.effectAllowed = 'move';
@@ -380,10 +503,10 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-            {projectData?.name || project?.title || 'Project Board'}
+            {(projectData && ((projectData as Project).name || (projectData as ProjectInfo).title)) || project?.title || 'Project Board'}
           </h1>
           <p className="text-muted-foreground text-sm sm:text-base line-clamp-1">
-            {projectData?.description || project?.description || 'Drag and drop items between columns to change their status'}
+            {(projectData && ((projectData as Project).description || (projectData as ProjectInfo).description)) || project?.description || 'Drag and drop items between columns to change their status'}
           </p>
         </div>
         <Button onClick={() => setShowNewItemForm('Todo')} className="w-full sm:w-auto">
@@ -405,7 +528,6 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {columns.map((column) => {
-          // Create column ID for search navigation - convert to lowercase and replace spaces
           const columnId = column.id.toLowerCase().replace(/\s+/g, '-') + '-column';
           
           return (
@@ -414,75 +536,82 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
               id={columnId}
               className={`${column.bgColor} rounded-lg border-l-4 ${column.color}`}
             >
-            <div className="p-3 sm:p-4 border-b border-gray-200">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="font-bold text-base sm:text-lg text-gray-800">
-                  {column.title}
-                </h2>
-
+              <div className="p-3 sm:p-4 border-b border-gray-200">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="font-bold text-base sm:text-lg text-gray-800">
+                    {column.title}
+                  </h2>
+                </div>
+                
+                <div className="flex space-x-2 text-xs sm:text-sm text-gray-600">
+                  <span>
+                    {getTasksByStatus(column.id).filter(item => item.type === 'project').length} Projects
+                  </span>
+                  <span>•</span>
+                  <span>
+                    {getTasksByStatus(column.id).filter(item => item.type === 'task').length} Tasks
+                  </span>
+                  {getTasksByStatus(column.id).filter(item => item.needsReview).length > 0 && (
+                    <>
+                      <span>•</span>
+                      <span className="text-red-600 font-medium">
+                        {getTasksByStatus(column.id).filter(item => item.needsReview).length} Need Review
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
               
-              <div className="flex space-x-2 text-xs sm:text-sm text-gray-600">
-                <span>
-                  {getTasksByStatus(column.id).filter(item => item.type === 'project').length} Projects
-                </span>
-                <span>•</span>
-                <span>
-                  {getTasksByStatus(column.id).filter(item => item.type === 'task').length} Tasks
-                </span>
+              <div className="p-2 sm:p-4">
+                <div
+                  onDrop={(e) => handleDrop(e, column.id)}
+                  onDragOver={handleDragOver}
+                  onDragEnter={() => handleDragEnter(column.id)}
+                  onDragLeave={handleDragLeave}
+                  className={`min-h-[400px] sm:min-h-[600px] transition-all duration-300 ease-out ${
+                    dragOverColumn === column.id 
+                      ? 'bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-dashed border-blue-400 rounded-lg scale-[1.01] shadow-inner' 
+                      : ''
+                  }`}
+                >
+                  {showNewItemForm === column.id && (
+                    <NewItemForm 
+                      columnId={column.id} 
+                      onCancel={() => setShowNewItemForm('')}
+                      onAdd={addNewTask}
+                    />
+                  )}
+                  
+                  {getTasksByStatus(column.id).map((item) => (
+                    <TaskCard 
+                      key={item.id} 
+                      item={item}
+                      isDragging={draggedItem?.id === item.id}
+                      isHighlighted={highlightedTaskId === item.id}
+                      onEdit={() => setSelectedItem(item)}
+                      onDelete={() => deleteTask(item.id)}
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleDragEnd}
+                      onMove={(newStatus) => updateTaskStatus(item, newStatus)}
+                    />
+                  ))}
+                  
+                  {getTasksByStatus(column.id).length === 0 && showNewItemForm !== column.id && (
+                    <div className="flex flex-col items-center justify-center py-8 sm:py-12 text-muted-foreground">
+                      <p className="text-sm mb-2">No items yet</p>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => setShowNewItemForm(column.id)}
+                        className="text-xs"
+                      >
+                        Add your first item
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-            
-            <div className="p-2 sm:p-4">
-              <div
-                onDrop={(e) => handleDrop(e, column.id)}
-                onDragOver={handleDragOver}
-                onDragEnter={() => handleDragEnter(column.id)}
-                onDragLeave={handleDragLeave}
-                className={`min-h-[400px] sm:min-h-[600px] transition-all duration-300 ease-out ${
-                  dragOverColumn === column.id 
-                    ? 'bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-dashed border-blue-400 rounded-lg scale-[1.01] shadow-inner' 
-                    : ''
-                }`}
-              >
-                {showNewItemForm === column.id && (
-                  <NewItemForm 
-                    columnId={column.id} 
-                    onCancel={() => setShowNewItemForm('')}
-                    onAdd={addNewTask}
-                  />
-                )}
-                
-                {getTasksByStatus(column.id).map((item) => (
-                  <TaskCard 
-                    key={item.id} 
-                    item={item}
-                    isDragging={draggedItem?.id === item.id}
-                    isHighlighted={highlightedTaskId === item.id}
-                    onEdit={() => setSelectedItem(item)}
-                    onDelete={() => deleteTask(item.id)}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
-                    onMove={(newStatus) => updateTaskStatus(item, newStatus)}
-                  />
-                ))}
-                
-                {getTasksByStatus(column.id).length === 0 && showNewItemForm !== column.id && (
-                  <div className="flex flex-col items-center justify-center py-8 sm:py-12 text-muted-foreground">
-                    <p className="text-sm mb-2">No items yet</p>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => setShowNewItemForm(column.id)}
-                      className="text-xs"
-                    >
-                      Add your first item
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
           )
         })}
       </div>
@@ -499,14 +628,14 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
   );
 }
 
-// Task Card Component
+// Enhanced Task Card Component with Review Status
 interface TaskCardProps {
-  item: Task;
+  item: TaskWithReview;
   isDragging: boolean;
   isHighlighted?: boolean;
   onEdit: () => void;
   onDelete: () => void;
-  onDragStart: (e: React.DragEvent, item: Task) => void;
+  onDragStart: (e: React.DragEvent, item: TaskWithReview) => void;
   onDragEnd: () => void;
   onMove?: (newStatus: string) => void;
 }
@@ -520,7 +649,7 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
     
     if (currentStatus !== 'Todo') options.push({ value: 'Todo', label: '📋 Todo', icon: '←' });
     if (currentStatus !== 'In Progress') options.push({ value: 'In Progress', label: '⚡ In Progress', icon: '↔' });
-    if (currentStatus !== 'Done') options.push({ value: 'Done', label: '✅ Done', icon: '→' });  // Changed from 'Completed'
+    if (currentStatus !== 'Done') options.push({ value: 'Done', label: '✅ Done', icon: '→' });
     
     return options;
   };
@@ -543,19 +672,47 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
         isDragging ? 'opacity-50 scale-105' : 'hover:scale-[1.01]'
       } ${
         isHighlighted ? 'ring-2 ring-blue-500 ring-offset-2 bg-blue-50 animate-pulse' : ''
+      } ${
+        item.needsReview ? 'border-l-4 border-l-amber-400' : ''
       }`}
     >
       <div className="flex justify-between items-start mb-2">
-        <div className="flex items-center space-x-1 sm:space-x-2 min-w-0 flex-1">
+        <div className="flex items-center space-x-1 sm:space-x-2 min-w-0 flex-1 flex-wrap gap-1">
           <GripVertical className="hidden sm:block h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
           <Badge className={`text-xs font-bold ${item.type ? typeConfig[item.type].color : 'bg-gray-100 text-gray-700'} flex-shrink-0`}>
             {item.type ? typeConfig[item.type].label : 'Task'}
           </Badge>
-          <Badge variant={priorityConfig[item.priority].color as any} className="text-xs flex-shrink-0">
+          <Badge variant={priorityConfig[item.priority].color} className="text-xs flex-shrink-0">
             <span className="hidden sm:inline">{priorityConfig[item.priority].icon} {item.priority}</span>
             <span className="sm:hidden">{priorityConfig[item.priority].icon}</span>
           </Badge>
+          
+          {/* Review Status Badge */}
+          {item.reviewStatus && item.reviewStatus !== 'pending' && (
+            <Badge className={`text-xs flex-shrink-0 ${reviewStatusConfig[item.reviewStatus].color}`}>
+              <span className="hidden sm:inline">
+                {item.reviewStatus === 'changes_requested' ? '⚠️ Changes Requested' :
+                 item.reviewStatus === 'on_hold' ? '⏸️ On Hold' :
+                 '✅ Approved'}
+              </span>
+              <span className="sm:hidden">
+                {item.reviewStatus === 'changes_requested' ? '⚠️' :
+                 item.reviewStatus === 'on_hold' ? '⏸️' :
+                 '✅'}
+              </span>
+            </Badge>
+          )}
+          
+          {/* Needs Review Indicator */}
+          {item.needsReview && (
+            <Badge className="text-xs bg-red-100 text-red-700 flex-shrink-0">
+              <MessageSquare className="h-3 w-3 mr-1" />
+              <span className="hidden sm:inline">Review Required</span>
+              <span className="sm:hidden">Review</span>
+            </Badge>
+          )}
         </div>
+        
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button 
@@ -603,6 +760,38 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
         {item.name}
       </h3>
       
+      {/* Review Feedback Section - Show if task has been reviewed */}
+      {item.lastReviewNotes && item.reviewStatus && item.reviewStatus !== 'pending' && (
+        <div className={`mb-3 p-2 border rounded ${
+          item.reviewStatus === 'changes_requested' ? 'bg-red-50 border-red-200' :
+          item.reviewStatus === 'on_hold' ? 'bg-yellow-50 border-yellow-200' :
+          'bg-green-50 border-green-200'
+        }`}>
+          <p className={`text-xs font-medium mb-1 ${
+            item.reviewStatus === 'changes_requested' ? 'text-red-700' :
+            item.reviewStatus === 'on_hold' ? 'text-yellow-700' :
+            'text-green-700'
+          }`}>
+            {item.reviewStatus === 'changes_requested' ? '📝 Review Feedback:' :
+             item.reviewStatus === 'on_hold' ? '⏸️ Discussion Notes:' :
+             '✅ Review Notes:'}
+          </p>
+          <p className={`text-xs line-clamp-2 ${
+            item.reviewStatus === 'changes_requested' ? 'text-red-600' :
+            item.reviewStatus === 'on_hold' ? 'text-yellow-600' :
+            'text-green-600'
+          }`}>
+            {item.lastReviewNotes}
+          </p>
+          {item.reviewChangeDetails && item.reviewStatus === 'changes_requested' && (
+            <div className="mt-1 pt-1 border-t border-red-300">
+              <p className="text-xs font-medium text-red-700 mb-1">Changes Required:</p>
+              <p className="text-xs text-red-600 line-clamp-2">{item.reviewChangeDetails}</p>
+            </div>
+          )}
+        </div>
+      )}
+      
       {item.contents && (
         <Dialog>
           <DialogTrigger asChild>
@@ -628,13 +817,20 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
           </DialogTrigger>
           <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden">
             <DialogHeader className="pb-4 border-b">
-              <div className="flex items-start gap-3 mb-3">
+              <div className="flex items-start gap-3 mb-3 flex-wrap">
                 <Badge className={`${item.type ? typeConfig[item.type].color : 'bg-gray-100 text-gray-700'} text-xs`}>
                   {item.type ? typeConfig[item.type].label : 'Task'}
                 </Badge>
-                <Badge variant={priorityConfig[item.priority].color as any} className="text-xs">
+                <Badge variant={priorityConfig[item.priority].color} className="text-xs">
                   {priorityConfig[item.priority].icon} {item.priority}
                 </Badge>
+                {item.reviewStatus && item.reviewStatus !== 'pending' && (
+                  <Badge className={`text-xs ${reviewStatusConfig[item.reviewStatus].color}`}>
+                    {item.reviewStatus === 'changes_requested' ? 'Changes Requested' :
+                     item.reviewStatus === 'on_hold' ? 'On Hold' :
+                     'Approved'}
+                  </Badge>
+                )}
               </div>
               <DialogTitle className="text-xl font-bold text-left leading-tight pr-8">
                 {item.name}
@@ -642,6 +838,42 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
             </DialogHeader>
             <div className="overflow-y-auto max-h-[60vh] py-4">
               <div className="space-y-4">
+                {/* Review Information Section */}
+                {item.lastReviewNotes && item.reviewStatus && item.reviewStatus !== 'pending' && (
+                  <div className={`p-4 border rounded-lg ${
+                    item.reviewStatus === 'changes_requested' ? 'bg-red-50 border-red-200' :
+                    item.reviewStatus === 'on_hold' ? 'bg-yellow-50 border-yellow-200' :
+                    'bg-green-50 border-green-200'
+                  }`}>
+                    <h4 className={`text-sm font-semibold mb-2 flex items-center gap-2 ${
+                      item.reviewStatus === 'changes_requested' ? 'text-red-900' :
+                      item.reviewStatus === 'on_hold' ? 'text-yellow-900' :
+                      'text-green-900'
+                    }`}>
+                      {item.reviewStatus === 'changes_requested' ? '⚠️ Review Feedback' :
+                       item.reviewStatus === 'on_hold' ? '⏸️ Discussion Notes' :
+                       '✅ Approved'}
+                    </h4>
+                    <div className={`bg-white rounded p-3 border ${
+                      item.reviewStatus === 'changes_requested' ? 'border-red-200' :
+                      item.reviewStatus === 'on_hold' ? 'border-yellow-200' :
+                      'border-green-200'
+                    }`}>
+                      <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap break-words">
+                        {item.lastReviewNotes}
+                      </p>
+                      {item.reviewChangeDetails && item.reviewStatus === 'changes_requested' && (
+                        <div className="mt-3 pt-3 border-t border-red-200">
+                          <p className="text-sm font-medium text-red-700 mb-2">Specific Changes Required:</p>
+                          <p className="text-sm text-red-600 leading-relaxed whitespace-pre-wrap break-words">
+                            {item.reviewChangeDetails}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
                 <div>
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center gap-2">
                     📄 Description
@@ -708,26 +940,28 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
       
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <div className="flex items-center min-w-0">
-          {item.due_date && (
-            <div className="flex items-center flex-shrink-0 mr-2">
-              <Calendar className="h-3 w-3 flex-shrink-0 mr-1" />
-              <span className="hidden sm:inline truncate">
-                {new Date(item.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-              </span>
-              <span className="sm:hidden truncate">
-                {new Date(item.due_date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
-              </span>
-            </div>
+          <Calendar className="h-3 w-3 mr-1 text-gray-500" />
+          {item.dueDate ? (
+            <span className="text-sm font-medium">
+              <ClientDate iso={item.dueDate} options={{ month: 'short', day: 'numeric', year: 'numeric' }} />
+            </span>
+          ) : item.due_date ? (
+            <span className="text-sm font-medium">
+              <ClientDate iso={item.due_date} options={{ month: 'short', day: 'numeric', year: 'numeric' }} />
+            </span>
+          ) : (
+            <span className="text-sm text-muted-foreground">No due date</span>
           )}
         </div>
-        {item.assignee && (
-          <div className="flex items-center space-x-1 flex-shrink-0">
+
+        {item.assignee ? (
+          <div className="flex items-center space-x-2 flex-shrink-0">
             <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-medium flex-shrink-0">
               👤
             </div>
             <span className="text-base truncate max-w-[60px] sm:max-w-[80px]">{item.assignee.split(' ')[0]}</span>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -742,29 +976,28 @@ interface NewItemFormProps {
 
 const NewItemForm = ({ columnId, onCancel, onAdd }: NewItemFormProps) => {
   const [formData, setFormData] = useState<CreateTaskRequest>({
-    name: '',  // Changed from 'title'
-    contents: '',  // Changed from 'description'
+    name: '',
+    contents: '',
     type: 'task',
     priority: 'Medium',
-    due_date: '',  // Changed from 'dueDate'
+    due_date: '',
     assignee: '',
     progress: 0,
     status: columnId
   });
 
   const handleSubmit = () => {
-    if (!formData.name.trim()) return;  // Changed from 'title'
+    if (!formData.name.trim()) return;
     onAdd(formData);
   };
 
   return (
     <div className="mb-2 sm:mb-3 p-3 sm:p-4 bg-white border-2 border-dashed border-gray-300 rounded-lg">
       <div className="space-y-3">
-        {/* Priority at very top left */}
         <div className="w-full sm:w-1/3">
           <Select 
             value={formData.priority} 
-            onValueChange={(value: any) => setFormData(prev => ({...prev, priority: value}))}
+            onValueChange={(value: Priority) => setFormData(prev => ({...prev, priority: value}))}
           >
             <SelectTrigger className="text-sm">
               <SelectValue />
@@ -779,25 +1012,24 @@ const NewItemForm = ({ columnId, onCancel, onAdd }: NewItemFormProps) => {
         
         <Input
           placeholder="Task title"
-          value={formData.name}  // Changed from 'title'
-          onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))}  // Changed from 'title'
+          value={formData.name}
+          onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))}
           autoFocus
           className="text-sm"
         />
         
         <Textarea
           placeholder="Description (optional)"
-          value={formData.contents}  // Changed from 'description'
-          onChange={(e) => setFormData(prev => ({...prev, contents: e.target.value}))}  // Changed from 'description'
+          value={formData.contents}
+          onChange={(e) => setFormData(prev => ({...prev, contents: e.target.value}))}
           className="min-h-[60px] text-sm resize-none"
         />
         
-        {/* Due Date and Assignee Row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <Input
             type="date"
-            value={formData.due_date}  // Changed from 'dueDate'
-            onChange={(e) => setFormData(prev => ({...prev, due_date: e.target.value}))}  // Changed from 'dueDate'
+            value={formData.due_date}
+            onChange={(e) => setFormData(prev => ({...prev, due_date: e.target.value}))}
             className="text-sm"
             placeholder="Due date"
           />
@@ -839,16 +1071,16 @@ const NewItemForm = ({ columnId, onCancel, onAdd }: NewItemFormProps) => {
   );
 };
 
-// Task Modal Component
+// Enhanced Task Modal Component
 interface TaskModalProps {
-  item: Task;
+  item: TaskWithReview;
   onClose: () => void;
-  onUpdate: (updatedTask: Task) => void;
+  onUpdate: (updatedTask: TaskWithReview) => void;
   onDelete: (id: number) => void;
 }
 
 const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
-  const [editedItem, setEditedItem] = useState<Task>(item);
+  const [editedItem, setEditedItem] = useState<TaskWithReview>(item);
 
   const saveItem = (): void => {
     onUpdate(editedItem);
@@ -861,7 +1093,6 @@ const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
     document.documentElement.style.overflow = 'hidden';
     
     return () => {
-      // Clean up on unmount
       document.body.style.overflow = '';
       document.documentElement.style.overflow = '';
     };
@@ -882,18 +1113,24 @@ const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4 touch-none">
       <Card className="max-w-lg w-full max-h-[95vh] sm:max-h-[90vh] flex flex-col">
-        {/* Header - Fixed */}
         <CardHeader className="pb-2 sm:pb-4 flex-shrink-0 border-b">
           <div className="flex justify-between items-start">
             <div className="flex-1 mr-2">
               <CardTitle className="text-base sm:text-xl mb-1 sm:mb-2">Edit {item.type === 'project' ? 'Project' : 'Task'}</CardTitle>
-              <div className="flex items-center space-x-1 sm:space-x-2">
+              <div className="flex items-center space-x-1 sm:space-x-2 flex-wrap gap-1">
                 <Badge className={`text-xs font-bold ${editedItem.type ? typeConfig[editedItem.type].color : 'bg-gray-100 text-gray-700'}`}>
                   {editedItem.type ? typeConfig[editedItem.type].label : 'Task'}
                 </Badge>
-                <Badge variant={priorityConfig[editedItem.priority].color as any} className="text-xs">
+                <Badge variant={priorityConfig[editedItem.priority].color} className="text-xs">
                   {priorityConfig[editedItem.priority].icon} {editedItem.priority}
                 </Badge>
+                {editedItem.reviewStatus && editedItem.reviewStatus !== 'pending' && (
+                  <Badge className={`text-xs ${reviewStatusConfig[editedItem.reviewStatus].color}`}>
+                    {editedItem.reviewStatus === 'changes_requested' ? 'Changes Requested' :
+                     editedItem.reviewStatus === 'on_hold' ? 'On Hold' :
+                     'Approved'}
+                  </Badge>
+                )}
               </div>
             </div>
             <Button variant="ghost" size="sm" onClick={onClose} className="flex-shrink-0">
@@ -902,125 +1139,152 @@ const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
           </div>
         </CardHeader>
         
-        {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto">
           <CardContent className="space-y-3 sm:space-y-6 p-6">
-          <div className="space-y-2">
-            <label className="text-xs sm:text-sm font-medium">Title</label>
-            <Input
-              value={editedItem.name}
-              onChange={(e) => setEditedItem({...editedItem, name: e.target.value})}
-              placeholder={`${item.type === 'project' ? 'Project' : 'Task'} title`}
-              className="text-sm sm:text-base"
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <label className="text-xs sm:text-sm font-medium">Description</label>
-            <Textarea
-              value={editedItem.contents || ''}
-              onChange={(e) => {
-                setEditedItem({...editedItem, contents: e.target.value});
-                // Auto-resize textarea
-                const textarea = e.target as HTMLTextAreaElement;
-                textarea.style.height = 'auto';
-                textarea.style.height = `${Math.max(60, textarea.scrollHeight)}px`;
-              }}
-              onDragStart={(e) => e.preventDefault()}
-              onDrop={(e) => e.preventDefault()}
-              placeholder={`${item.type === 'project' ? 'Project' : 'Task'} description (supports links)`}
-              className="min-h-[60px] text-sm resize-none overflow-hidden"
-              style={{ 
-                height: editedItem.contents ? 'auto' : '60px',
-                minHeight: '60px'
-              }}
-              onMouseDown={(e) => e.stopPropagation()}
-              onMouseMove={(e) => e.stopPropagation()}
-            />
-          </div>
-          
-          {/* Due Date, Priority, and Status inline - Equal size */}
-          <div className="space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
-              <div className="space-y-1 flex-1">
-                <label className="text-xs font-medium text-gray-600">Due Date</label>
-                <Input
-                  type="date"
-                  value={editedItem.due_date || ''}
-                  onChange={(e) => setEditedItem({...editedItem, due_date: e.target.value})}
-                  className="h-9 text-sm w-full"
-                />
+            {/* Review Information Section */}
+            {editedItem.lastReviewNotes && editedItem.reviewStatus && editedItem.reviewStatus !== 'pending' && (
+              <div className={`p-3 border rounded-lg ${
+                editedItem.reviewStatus === 'changes_requested' ? 'bg-red-50 border-red-200' :
+                editedItem.reviewStatus === 'on_hold' ? 'bg-yellow-50 border-yellow-200' :
+                'bg-green-50 border-green-200'
+              }`}>
+                <h4 className={`text-sm font-semibold mb-2 ${
+                  editedItem.reviewStatus === 'changes_requested' ? 'text-red-900' :
+                  editedItem.reviewStatus === 'on_hold' ? 'text-yellow-900' :
+                  'text-green-900'
+                }`}>
+                  {editedItem.reviewStatus === 'changes_requested' ? '⚠️ Review Feedback:' :
+                   editedItem.reviewStatus === 'on_hold' ? '⏸️ Discussion Notes:' :
+                   '✅ Review Notes:'}
+                </h4>
+                <p className={`text-sm ${
+                  editedItem.reviewStatus === 'changes_requested' ? 'text-red-700' :
+                  editedItem.reviewStatus === 'on_hold' ? 'text-yellow-700' :
+                  'text-green-700'
+                }`}>
+                  {editedItem.lastReviewNotes}
+                </p>
+                {editedItem.reviewChangeDetails && editedItem.reviewStatus === 'changes_requested' && (
+                  <div className="mt-2 pt-2 border-t border-red-300">
+                    <p className="text-sm font-medium text-red-700 mb-1">Changes Required:</p>
+                    <p className="text-sm text-red-600">{editedItem.reviewChangeDetails}</p>
+                  </div>
+                )}
               </div>
-              
-              <div className="space-y-1 flex-1">
-                <label className="text-xs font-medium text-gray-600">Priority</label>
-                <Select value={editedItem.priority} onValueChange={(value: any) => setEditedItem({...editedItem, priority: value})}>
-                  <SelectTrigger className="h-9 text-sm w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent position="popper" side="bottom" align="start" sideOffset={4} avoidCollisions={false}>
-                    <SelectItem value="Low">Low Priority</SelectItem>
-                    <SelectItem value="Medium">Medium Priority</SelectItem>
-                    <SelectItem value="High">High Priority</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1 flex-1">
-                <label className="text-xs font-medium text-gray-600">Status</label>
-                <Select value={editedItem.status} onValueChange={(value: any) => setEditedItem({...editedItem, status: value})}>
-                  <SelectTrigger className="h-9 text-sm w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent position="popper" side="bottom" align="start" sideOffset={4} avoidCollisions={false}>
-                    <SelectItem value="Todo">Todo</SelectItem>
-                    <SelectItem value="In Progress">In Progress</SelectItem>
-                    <SelectItem value="Completed">Completed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            )}
             
-            {/* Assignee - Full width with icon */}
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-600">👤 Assignee</label>
+            <div className="space-y-2">
+              <label className="text-xs sm:text-sm font-medium">Title</label>
               <Input
-                value={editedItem.assignee || ''}
-                onChange={(e) => setEditedItem({...editedItem, assignee: e.target.value})}
-                placeholder="Enter assignee name"
-                className="h-9 text-sm"
+                value={editedItem.name}
+                onChange={(e) => setEditedItem({...editedItem, name: e.target.value})}
+                placeholder={`${item.type === 'project' ? 'Project' : 'Task'} title`}
+                className="text-sm sm:text-base"
               />
             </div>
-          </div>
-
-          {editedItem.type === 'project' && (
+            
             <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <label className="text-xs font-medium text-gray-600">Progress</label>
-                <span className="text-xs text-muted-foreground">{editedItem.progress || 0}%</span>
-              </div>
-              <div className="space-y-2">
-                <Slider
-                  value={[editedItem.progress || 0]}
-                  onValueChange={(value) => setEditedItem({...editedItem, progress: value[0]})}
-                  max={100}
-                  step={1}
-                  className="w-full"
-                />
-                <div className="hidden sm:flex justify-between text-xs text-muted-foreground">
-                  <span>0%</span>
-                  <span>25%</span>
-                  <span>50%</span>
-                  <span>75%</span>
-                  <span>100%</span>
+              <label className="text-xs sm:text-sm font-medium">Description</label>
+              <Textarea
+                value={editedItem.contents || ''}
+                onChange={(e) => {
+                  setEditedItem({...editedItem, contents: e.target.value});
+                  const textarea = e.target as HTMLTextAreaElement;
+                  textarea.style.height = 'auto';
+                  textarea.style.height = `${Math.max(60, textarea.scrollHeight)}px`;
+                }}
+                onDragStart={(e) => e.preventDefault()}
+                onDrop={(e) => e.preventDefault()}
+                placeholder={`${item.type === 'project' ? 'Project' : 'Task'} description (supports links)`}
+                className="min-h-[60px] text-sm resize-none overflow-hidden"
+                style={{ 
+                  height: editedItem.contents ? 'auto' : '60px',
+                  minHeight: '60px'
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onMouseMove={(e) => e.stopPropagation()}
+              />
+            </div>
+            
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+                <div className="space-y-1 flex-1">
+                  <label className="text-xs font-medium text-gray-600">Due Date</label>
+                  <Input
+                    type="date"
+                    value={editedItem.due_date || ''}
+                    onChange={(e) => setEditedItem({...editedItem, due_date: e.target.value})}
+                    className="h-9 text-sm w-full"
+                  />
+                </div>
+                
+                <div className="space-y-1 flex-1">
+                  <label className="text-xs font-medium text-gray-600">Priority</label>
+                  <Select value={editedItem.priority} onValueChange={(value: Priority) => setEditedItem({...editedItem, priority: value})}>
+                    <SelectTrigger className="h-9 text-sm w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent position="popper" side="bottom" align="start" sideOffset={4} avoidCollisions={false}>
+                      <SelectItem value="Low">Low Priority</SelectItem>
+                      <SelectItem value="Medium">Medium Priority</SelectItem>
+                      <SelectItem value="High">High Priority</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1 flex-1">
+                  <label className="text-xs font-medium text-gray-600">Status</label>
+                  <Select value={editedItem.status} onValueChange={(value: ItemStatus) => setEditedItem({...editedItem, status: value})}>
+                    <SelectTrigger className="h-9 text-sm w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent position="popper" side="bottom" align="start" sideOffset={4} avoidCollisions={false}>
+                      <SelectItem value="Todo">Todo</SelectItem>
+                      <SelectItem value="In Progress">In Progress</SelectItem>
+                      <SelectItem value="Done">Done</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
+              
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-600">👤 Assignee</label>
+                <Input
+                  value={editedItem.assignee || ''}
+                  onChange={(e) => setEditedItem({...editedItem, assignee: e.target.value})}
+                  placeholder="Enter assignee name"
+                  className="h-9 text-sm"
+                />
+              </div>
             </div>
-          )}
+
+            {editedItem.type === 'project' && (
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-medium text-gray-600">Progress</label>
+                  <span className="text-xs text-muted-foreground">{editedItem.progress || 0}%</span>
+                </div>
+                <div className="space-y-2">
+                  <Slider
+                    value={[editedItem.progress || 0]}
+                    onValueChange={(value) => setEditedItem({...editedItem, progress: value[0]})}
+                    max={100}
+                    step={1}
+                    className="w-full"
+                  />
+                  <div className="hidden sm:flex justify-between text-xs text-muted-foreground">
+                    <span>0%</span>
+                    <span>25%</span>
+                    <span>50%</span>
+                    <span>75%</span>
+                    <span>100%</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </div>
         
-        {/* Fixed Bottom Action Bar */}
         <div className="flex-shrink-0 border-t bg-white dark:bg-gray-800 p-4">
           <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
             <Button 

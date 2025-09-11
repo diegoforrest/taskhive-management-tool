@@ -6,7 +6,9 @@ import { ChangeLog } from './changelog.entity';
 export enum TaskStatus {
   TODO = 'Todo',
   IN_PROGRESS = 'In Progress',
-  COMPLETED = 'Done'
+  COMPLETED = 'Done',
+  ON_HOLD = 'On Hold',
+  REQUEST_CHANGES = 'Request Changes'
 }
 
 export enum TaskPriority {

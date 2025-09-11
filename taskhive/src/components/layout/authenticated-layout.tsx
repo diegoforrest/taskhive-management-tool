@@ -1,7 +1,6 @@
 // components/layout/authenticated-layout.tsx
 "use client"
 
-import { cookies } from "next/headers"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/sidebar/app-sidebar"
 import { TopBar } from "@/components/topbar/top-bar"

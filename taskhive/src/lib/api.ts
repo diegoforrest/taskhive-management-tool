@@ -32,8 +32,15 @@ interface RegisterResponse {
   email?: string;
 }
 
+// Generic API response shape
+export type ApiResponse<T = unknown> = {
+  success?: boolean
+  data?: T
+  message?: string
+} | T
+
 // Utility function to make HTTP requests
-const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
+const apiRequest = async (endpoint: string, options: RequestInit = {}): Promise<ApiResponse<unknown>> => {
   const url = `${API_BASE_URL}${endpoint}`;
   const config: RequestInit = {
     headers: {
@@ -45,13 +52,13 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
 
   try {
     const response = await fetch(url, config);
-    const data = await response.json();
+  const data = await response.json();
     
     if (!response.ok) {
       throw new Error(data.message || `HTTP error! status: ${response.status}`);
     }
     
-    return data;
+  return data as ApiResponse<unknown>;
   } catch (error) {
     console.error('API Request Error:', error);
     throw error;
@@ -63,32 +70,32 @@ export const authApi = {
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
     console.log('Real API login request:', credentials);
     
-    return await apiRequest('/testlogin', {
+    return (await apiRequest('/testlogin', {
       method: 'POST',
       body: JSON.stringify(credentials),
-    });
+    })) as LoginResponse;
   },
 
   register: async (userData: RegisterRequest): Promise<RegisterResponse> => {
     console.log('Real API registration request:', userData);
     
-    return await apiRequest('/test01/create_member', {
+    return (await apiRequest('/test01/create_member', {
       method: 'POST',
       body: JSON.stringify(userData),
-    });
+    })) as RegisterResponse;
   },
 
   createProject: async (projectData: {
     user_id: number;
     name: string;
     description?: string;
-  }): Promise<any> => {
+  }): Promise<ApiResponse<Project>> => {
     console.log('Real API create project request:', projectData);
     
     const res = await apiRequest('/test02/create_project', {
       method: 'POST',
       body: JSON.stringify(projectData),
-    });
+    }) as ApiResponse<Project>;
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('projectCreated'))
       window.dispatchEvent(new Event('projectsUpdated'))
@@ -96,12 +103,12 @@ export const authApi = {
     return res
   },
 
-  getProjects: async (user_id: number): Promise<any> => {
+  getProjects: async (user_id: number): Promise<ApiResponse<Project[]>> => {
     console.log('Real API get projects request for user_id:', user_id);
     
-    return await apiRequest(`/test03/get_projects?user_id=${user_id}`, {
+    return (await apiRequest(`/test03/get_projects?user_id=${user_id}`, {
       method: 'GET',
-    });
+    })) as ApiResponse<Project[]>;
   },
 
   updateProject: async (projectId: number, updateData: {
@@ -110,13 +117,13 @@ export const authApi = {
     priority?: string;
     due_date?: string;
     status?: string;
-  }): Promise<any> => {
+  }): Promise<ApiResponse<Project>> => {
     console.log('Real API update project request:', { projectId, updateData });
     
     const res = await apiRequest(`/test04/update_project/${projectId}`, {
       method: 'POST',
       body: JSON.stringify(updateData),
-    });
+    }) as ApiResponse<Project>;
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('projectUpdated'))
       window.dispatchEvent(new Event('projectsUpdated'))
@@ -124,7 +131,7 @@ export const authApi = {
     return res
   },
 
-  deleteProject: async (projectId: number): Promise<any> => {
+  deleteProject: async (projectId: number): Promise<ApiResponse<unknown>> => {
     console.log('Real API delete project request:', projectId);
     
     const res = await apiRequest(`/test09/delete_project/${projectId}`, {
@@ -134,10 +141,10 @@ export const authApi = {
       window.dispatchEvent(new Event('projectDeleted'))
       window.dispatchEvent(new Event('projectsUpdated'))
     }
-    return res
+  return res
   },
 
-  getProject: async (projectId: number, user_id: number): Promise<any> => {
+  getProject: async (projectId: number, user_id: number): Promise<{ success: boolean; data: Project }> => {
     console.log('Real API get project request:', { projectId, user_id });
     
     // Since we don't have a single project endpoint, get all projects and filter
@@ -145,14 +152,24 @@ export const authApi = {
       method: 'GET',
     });
     
-    if (response.success && response.data) {
-      const project = response.data.find((p: any) => p.id === projectId);
+    // response may be ApiResponse<Project[]> or Project[]
+    if (typeof response === 'object' && response !== null && 'data' in response) {
+      const maybeData = (response as Record<string, unknown>)['data'];
+      if (Array.isArray(maybeData)) {
+        const project = (maybeData as Project[]).find((p) => p.id === projectId);
+        if (project) {
+          return { success: true, data: project };
+        }
+        throw new Error('Project not found');
+      }
+    } else if (Array.isArray(response)) {
+      const project = (response as Project[]).find((p) => p.id === projectId);
       if (project) {
         return { success: true, data: project };
       }
       throw new Error('Project not found');
     }
-    
+
     throw new Error('Failed to fetch projects');
   },
 
@@ -163,13 +180,13 @@ export const authApi = {
     priority?: string;
     due_date?: string;
     assignee?: string;
-  }): Promise<any> => {
+  }): Promise<ApiResponse<Task>> => {
     console.log('Real API create task request:', taskData);
     
     const res = await apiRequest('/test05/create_task', {
       method: 'POST',
       body: JSON.stringify(taskData),
-    });
+    }) as ApiResponse<Task>;
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('taskCreated'))
       window.dispatchEvent(new Event('tasksUpdated'))
@@ -177,15 +194,15 @@ export const authApi = {
     return res
   },
 
-  getTasks: async (project_id: number): Promise<any> => {
+  getTasks: async (project_id: number): Promise<ApiResponse<Task[]>> => {
     console.log('Real API get tasks request for project_id:', project_id);
     
-    return await apiRequest(`/test06/get_tasks?project_id=${project_id}`, {
+    return (await apiRequest(`/test06/get_tasks?project_id=${project_id}`, {
       method: 'GET',
-    });
+    })) as ApiResponse<Task[]>;
   },
 
-  deleteTask: async (taskId: number): Promise<any> => {
+  deleteTask: async (taskId: number): Promise<ApiResponse<unknown>> => {
     console.log('Real API delete task request:', taskId);
     
     const res = await apiRequest(`/test07/delete_task/${taskId}`, {
@@ -195,7 +212,7 @@ export const authApi = {
       window.dispatchEvent(new Event('taskDeleted'))
       window.dispatchEvent(new Event('tasksUpdated'))
     }
-    return res
+  return res
   },
 
   updateTask: async (taskId: number, updateData: {
@@ -205,13 +222,13 @@ export const authApi = {
     priority?: string;
     due_date?: string;
     assignee?: string;
-  }): Promise<any> => {
+  }): Promise<ApiResponse<Task>> => {
     console.log('Real API update task request:', taskId, updateData);
     
     const res = await apiRequest(`/test08/update_task/${taskId}`, {
       method: 'POST',
       body: JSON.stringify(updateData),
-    });
+    }) as ApiResponse<Task>;
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('taskUpdated'))
       window.dispatchEvent(new Event('tasksUpdated'))
@@ -224,9 +241,16 @@ export const authApi = {
 export interface Task {
   id: number;
   name: string;  // Changed from 'title' to match backend
+  // Legacy aliases kept for compatibility with components that still use older field names
+  title?: string;
   contents?: string;  // Changed from 'description' to match backend
+  description?: string;
+  // legacy dueDate camelCase alias
+  dueDate?: string;
+  // UI helper: optional URL anchor used by sidebar and links
+  url?: string;
   type?: 'task' | 'project';
-  status: 'Todo' | 'In Progress' | 'Done';  // Updated to match backend enum
+  status: 'Todo' | 'In Progress' | 'Done' | 'Completed';  // Accept both backend and legacy enums
   priority: 'Low' | 'Medium' | 'High' | 'Critical';  // Added 'Critical' to match backend
   due_date?: string;  // Changed from 'dueDate' to match backend
   assignee?: string;
@@ -247,58 +271,82 @@ export interface CreateTaskRequest {
   progress?: number;
 }
 
-export interface UpdateTaskRequest extends Partial<CreateTaskRequest> {}
+export type UpdateTaskRequest = Partial<CreateTaskRequest>
 
 export interface TasksByStatus {
   'Todo': Task[];
   'In Progress': Task[];
   'Done': Task[];  // Changed from 'Completed' to match backend
+  'Completed'?: Task[]; // legacy variant
 }
 
 // Mock data storage for tasks (keep for now until we build task endpoints)
-let mockTasks: Task[] = [
+const mockTasks: Task[] = [
   {
     id: 1,
-    name: "Setup project structure",  // Changed from 'title'
-    contents: "Initialize the project with proper folder structure",  // Changed from 'description'
+  name: "Setup project structure",  // Changed from 'title'
+  title: "Setup project structure",
+  contents: "Initialize the project with proper folder structure",  // Changed from 'description'
+  description: "Initialize the project with proper folder structure",
     type: 'task',
     status: 'Done',  // Changed from 'Completed'
     priority: 'High',
     assignee: "John Doe",
     progress: 100,
-    project_id: 1,  // Changed from 'user_id' and added project_id
+  project_id: 1,  // Changed from 'user_id' and added project_id
+  due_date: undefined,
+  dueDate: undefined,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   },
   {
     id: 2,
-    name: "Design user interface",  // Changed from 'title'
-    contents: "Create mockups and wireframes for the application",  // Changed from 'description'
+  name: "Design user interface",  // Changed from 'title'
+  title: "Design user interface",
+  contents: "Create mockups and wireframes for the application",  // Changed from 'description'
+  description: "Create mockups and wireframes for the application",
     type: 'task',
     status: 'In Progress',
     priority: 'Medium',
     assignee: "Jane Smith",
     progress: 60,
-    project_id: 1,  // Changed from 'user_id' and added project_id
+  project_id: 1,  // Changed from 'user_id' and added project_id
+  due_date: undefined,
+  dueDate: undefined,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   },
   {
     id: 3,
-    name: "Implement authentication",  // Changed from 'title'
-    contents: "Set up user login and registration system",  // Changed from 'description'
+  name: "Implement authentication",  // Changed from 'title'
+  title: "Implement authentication",
+  contents: "Set up user login and registration system",  // Changed from 'description'
+  description: "Set up user login and registration system",
     type: 'task',
     status: 'Todo',
     priority: 'High',
     assignee: "Bob Johnson",
     progress: 0,
-    project_id: 1,  // Changed from 'user_id' and added project_id
+  project_id: 1,  // Changed from 'user_id' and added project_id
+  due_date: undefined,
+  dueDate: undefined,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   }
 ];
 
-let mockProjects: any[] = [
+export interface Project {
+  id: number;
+  name: string;
+  description?: string;
+  user_id: number;
+  due_date?: string;
+  priority?: string;
+  status?: string;
+  createdAt?: string;
+}
+
+const mockProjects: Project[] = [
   {
     id: 1,
     name: "TaskHive Management System",
@@ -318,6 +366,18 @@ let nextProjectId = 2;
 const mockDelay = (ms: number = 500) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Tasks API functions (keeping mock for now)
+export interface ChangeLogEntry {
+  id: number;
+  description?: string;
+  old_status?: string;
+  new_status?: string;
+  remark?: string;
+  user_id?: number;
+  project_id?: number;
+  task_id?: number;
+  createdAt?: string;
+}
+
 export const tasksApi = {
   // Get all tasks grouped by status
   getTasksByStatus: async (): Promise<TasksByStatus> => {
@@ -376,7 +436,7 @@ export const tasksApi = {
   },
 
   // Update task status
-  updateTaskStatus: async (taskId: number, status: string): Promise<any> => {
+  updateTaskStatus: async (taskId: number, status: string): Promise<ApiResponse<unknown>> => {
     await mockDelay();
     
     const taskIndex = mockTasks.findIndex(task => task.id === taskId);
@@ -397,47 +457,71 @@ export const tasksApi = {
     }
     return res;
   },
-
   // Get all projects
-  getAllProjects: async (): Promise<any[]> => {
+  getAllProjects: async (): Promise<Project[]> => {
     await mockDelay();
     return [...mockProjects];
   },
 
-  // Create a new project
+  // Create a new project (mock)
   createProject: async (projectData: {
     name: string;
     description?: string;
     user_id: number;
     due_date?: string;
     priority?: string;
-  }): Promise<any> => {
+  }): Promise<ApiResponse<Project>> => {
     await mockDelay();
-    
-    const newProject = {
+
+    const newProject: Project = {
       id: nextProjectId++,
       ...projectData,
       status: "Todo",
       createdAt: new Date().toISOString()
-    };
-    
-    mockProjects.push(newProject);
-    return { success: true, data: newProject };
+  };
+  mockProjects.push(newProject);
+
+  return { success: true, data: newProject };
   },
 
   // Create changelog entry
-  createChangelog: async (taskId: number, oldStatus: string, newStatus: string, remark: string): Promise<any> => {
-    await mockDelay();
-    
-    console.log('Mock changelog created:', {
-      task_id: taskId,
-      old_status: oldStatus,
-      new_status: newStatus,
-      remark: remark,
-      timestamp: new Date().toISOString()
-    });
-    
-    return { success: true, message: "Changelog created successfully" };
+  createChangelog: async (taskId: number, oldStatus: string, newStatus: string, remark: string, projectId?: number, userId?: number): Promise<ApiResponse<unknown>> => {
+    // Try to call backend endpoint first
+    try {
+      const currentUserId = typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).CURRENT_USER_ID ? Number((window as unknown as Record<string, unknown>).CURRENT_USER_ID) : 1;
+      const payload: Record<string, unknown> = {
+        task_id: taskId,
+        old_status: oldStatus,
+        new_status: newStatus,
+        remark,
+        user_id: userId ?? currentUserId,
+      };
+      if (typeof projectId === 'number') payload.project_id = projectId;
+      const res = await apiRequest('/test10/create_changelog', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      return res;
+    } catch (e) {
+      console.warn('Backend changelog call failed, falling back to mock:', e);
+      await mockDelay();
+      return { success: true, message: 'Changelog created (mock)' };
+    }
+  },
+
+  // Fetch changelogs for a task or project
+  getChangelogs: async (taskId?: number, projectId?: number): Promise<ApiResponse<ChangeLogEntry[]>> => {
+    const q: string[] = [];
+    if (typeof taskId === 'number') q.push(`task_id=${taskId}`);
+    if (typeof projectId === 'number') q.push(`project_id=${projectId}`);
+    const query = q.length ? `?${q.join('&')}` : '';
+    try {
+  const res = await apiRequest(`/test10/get_changelogs${query}`, { method: 'GET' });
+  return res as ApiResponse<ChangeLogEntry[]>;
+    } catch (e) {
+      console.warn('Failed to fetch changelogs:', e);
+      return { success: false, data: [] };
+    }
   },
 
   // Delete a task

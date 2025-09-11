@@ -1,13 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronDown, List, Plus, Clock, AlertCircle, PlayCircle, CheckCircle, Calendar } from "lucide-react";
-import { tasksApi, authApi } from "@/lib/api";
+import { ChevronDown, List, Plus, Clock, AlertCircle, PlayCircle, CheckCircle, Calendar, Funnel } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+} from "@/components/ui/dropdown-menu";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
+import ClientDate from "@/components/ui/client-date"
+import CalendarPicker from "@/components/ui/calendar"
+import { tasksApi, authApi, Task, Project, ApiResponse } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+
+// Type guard for ApiResponse-like objects that contain a `data` property
+function hasData<T>(v: unknown): v is { data: T } {
+  return typeof v === 'object' && v !== null && 'data' in v;
+}
 
 export default function DashboardHome() {
   const [activeTab, setActiveTab] = useState<"all" | "review" | "completed">("all");
@@ -20,39 +32,91 @@ export default function DashboardHome() {
     projectId: null
   });
   const [note, setNote] = useState("");
-  const [projects, setProjects] = useState<any[]>([]);
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [projectTasks, setProjectTasks] = useState<{ [projectId: number]: any[] }>({});
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectTasks, setProjectTasks] = useState<Record<number, Task[]>>({});
   const [loading, setLoading] = useState(true);
+  const [dateFilter, setDateFilter] = useState<'any' | 'today' | 'this_week' | 'overdue' | 'specific'>('any');
+  const [specificDate, setSpecificDate] = useState<string | null>(null);
+  const [priorityFilter, setPriorityFilter] = useState<'all' | 'High' | 'Medium' | 'Low'>('all');
   const { user } = useAuth();
   
-  type Priority = "High" | "Medium" | "Low";
-  type TaskStatus = "Todo" | "In Progress" | "Done";
-  type ProjectStatus = "Active" | "Ready for Review" | "Completed";
-  
-  interface Task {
-    id: number;
-    name: string;
-    status: TaskStatus;
-    priority: Priority;
-    contents: string;
-    project_id: number;
-  }
-  
-  interface Project {
-    id: number;
-    name: string;
-    description: string;
-    user_id: string;
-    tasks: Task[];
-    status?: ProjectStatus;
-  }
+  // Use Task and Project types from the API typings
 
   // Load projects and tasks from API
+  const loadProjectTasks = useCallback(async (projectsData: Project[]) => {
+    const tasksByProject: Record<number, Task[]> = {};
+    
+    // Load tasks for each project
+      const taskPromises = projectsData.map(async (project: Project) => {
+      try {
+    const raw = await authApi.getTasks(project.id) as ApiResponse<Task[]> | Task[] | unknown;
+    const tasks: Task[] = hasData<Task[]>(raw) ? raw.data || [] : (Array.isArray(raw) ? raw : []);
+        return { projectId: project.id, tasks };
+      } catch (error) {
+        console.error(`Failed to load tasks for project ${project.id}:`, error);
+        return { projectId: project.id, tasks: [] as Task[] };
+      }
+    });
+
+    const results = await Promise.all(taskPromises);
+    
+    results.forEach(({ projectId, tasks }) => {
+      tasksByProject[projectId] = tasks;
+    });
+
+  setProjectTasks(tasksByProject);
+  }, []);
+
+  const loadData = useCallback(async () => {
+    if (!user?.user_id) return;
+    try {
+      setLoading(true);
+      // Load projects from real API
+      const projectsResponse = await authApi.getProjects(typeof user.user_id === 'number' ? user.user_id : parseInt(user.user_id));
+      console.log('Current user ID:', user.user_id);
+      console.log('Projects API response:', projectsResponse);
+
+      // Extract projects from the response (support both ApiResponse and raw array)
+      const projectsData: Project[] = hasData<Project[]>(projectsResponse)
+        ? projectsResponse.data || []
+        : (Array.isArray(projectsResponse) ? projectsResponse : []);
+      console.log('Projects data:', projectsData);
+
+      setProjects(projectsData);
+
+      // Load tasks for each project
+      if (projectsData.length > 0) {
+        await loadProjectTasks(projectsData);
+      }
+    } catch (error) {
+      console.error('Failed to load data:', error);
+      // Fallback logic unchanged
+      try {
+        console.log('Falling back to mock data...');
+  const [projectsData, tasksData] = await Promise.all([
+          tasksApi.getAllProjects(),
+          tasksApi.getAllTasks()
+        ]);
+        const userIdNum = typeof user.user_id === 'number' ? user.user_id : parseInt(user.user_id);
+        const userProjects: Project[] = projectsData
+          .filter((project: Project) => project.user_id === userIdNum)
+          .map((project: Project) => ({
+            ...project,
+            tasks: tasksData.filter((task: Task) => task.project_id === project.id)
+          }));
+  setProjects(userProjects);
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.user_id, loadProjectTasks]);
+
   useEffect(() => {
     console.log('Dashboard mounted, loading data...');
     loadData();
-  }, [user]);
+  }, [loadData]);
 
   // Reload data when component comes back into focus (useful after creating a project)
   useEffect(() => {
@@ -77,9 +141,37 @@ export default function DashboardHome() {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [user?.user_id]);
+  }, [user?.user_id, loadData]);
 
   // Auto-update project status when all tasks are completed
+  const getTaskStats = useCallback((projectId: number) => {
+    const tasks = projectTasks[projectId] || [];
+    const total = tasks.length;
+    const completed = tasks.filter(task => task.status === 'Done').length;
+    const inProgress = tasks.filter(task => task.status === 'In Progress').length;
+    const todo = tasks.filter(task => task.status === 'Todo').length;
+    console.log(`Project ${projectId} tasks:`, {
+      total,
+      completed,
+      inProgress,
+      todo,
+      taskStatuses: tasks.map(t => ({ id: t.id, name: t.name, status: t.status }))
+    });
+    return { total, completed, inProgress, todo };
+  }, [projectTasks]);
+
+  const updateProjectStatusBasedOnTasks = useCallback(async (projectId: number) => {
+    const { total, completed } = getTaskStats(projectId);
+    if (total > 0 && completed === total) {
+      try {
+        await authApi.updateProject(projectId, { status: 'To Review' });
+        loadData();
+      } catch (error) {
+        console.error('Failed to update project status:', error);
+      }
+    }
+  }, [getTaskStats, loadData]);
+
   useEffect(() => {
     projects.forEach(project => {
       const { total, completed } = getTaskStats(project.id);
@@ -87,109 +179,9 @@ export default function DashboardHome() {
         updateProjectStatusBasedOnTasks(project.id);
       }
     });
-  }, [projectTasks, projects]);
+  }, [projectTasks, projects, getTaskStats, updateProjectStatusBasedOnTasks]);
 
-  const loadData = async () => {
-    if (!user?.user_id) return;
-    
-    try {
-      setLoading(true);
-      
-      // Load projects from real API
-      const projectsResponse = await authApi.getProjects(typeof user.user_id === 'number' ? user.user_id : parseInt(user.user_id));
-      
-      console.log('Current user ID:', user.user_id);
-      console.log('Projects API response:', projectsResponse);
-      
-      // Extract projects from the response
-      const projectsData = projectsResponse.data || [];
-      console.log('Projects data:', projectsData);
-      
-      setProjects(projectsData);
-      
-      // Load tasks for each project
-      if (projectsData.length > 0) {
-        await loadProjectTasks(projectsData);
-      }
-      
-    } catch (error) {
-      console.error('Failed to load data:', error);
-      
-      // Fallback to mock data if API fails
-      try {
-        console.log('Falling back to mock data...');
-        const [projectsData, tasksData] = await Promise.all([
-          tasksApi.getAllProjects(),
-          tasksApi.getAllTasks()
-        ]);
-        
-        // Convert user_id to number for comparison since API returns numbers
-        const userIdNum = typeof user.user_id === 'number' ? user.user_id : parseInt(user.user_id);
-        
-        // Filter projects for current user
-        const userProjects = projectsData
-          .filter((project: any) => project.user_id === userIdNum)
-          .map((project: any) => ({
-            ...project,
-            tasks: tasksData.filter((task: any) => task.project_id === project.id)
-          }));
-        
-        setProjects(userProjects);
-        setTasks(tasksData.filter((task: any) => {
-          const userProjectIds = userProjects.map((p: any) => p.id);
-          return userProjectIds.includes(task.project_id);
-        }));
-      } catch (fallbackError) {
-        console.error('Fallback also failed:', fallbackError);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadProjectTasks = async (projectsData: any[]) => {
-    const tasksByProject: { [projectId: number]: any[] } = {};
-    
-    // Load tasks for each project
-    const taskPromises = projectsData.map(async (project) => {
-      try {
-        const response = await authApi.getTasks(project.id);
-        return { projectId: project.id, tasks: response.data || [] };
-      } catch (error) {
-        console.error(`Failed to load tasks for project ${project.id}:`, error);
-        return { projectId: project.id, tasks: [] };
-      }
-    });
-
-    const results = await Promise.all(taskPromises);
-    
-    results.forEach(({ projectId, tasks }) => {
-      tasksByProject[projectId] = tasks;
-    });
-
-    setProjectTasks(tasksByProject);
-  };
-
-  // Function to get task statistics for a project
-  const getTaskStats = (projectId: number) => {
-    const tasks = projectTasks[projectId] || [];
-    const total = tasks.length;
-    const completed = tasks.filter(task => task.status === 'Done').length;
-    const inProgress = tasks.filter(task => task.status === 'In Progress').length;
-    const todo = tasks.filter(task => task.status === 'Todo').length;
-    
-    // Debug logging
-    console.log(`Project ${projectId} tasks:`, {
-      total,
-      completed,
-      inProgress, 
-      todo,
-      taskStatuses: tasks.map(t => ({ id: t.id, name: t.name, status: t.status }))
-    });
-    
-    return { total, completed, inProgress, todo };
-  };
-
+  
   // Function to calculate progress percentage
   const getProjectProgress = (projectId: number) => {
     const { total, completed } = getTaskStats(projectId);
@@ -221,26 +213,12 @@ export default function DashboardHome() {
     return segments;
   };
 
-  // Function to auto-update project status based on task completion
-  const updateProjectStatusBasedOnTasks = async (projectId: number) => {
-    const { total, completed } = getTaskStats(projectId);
-    
-    if (total > 0 && completed === total) {
-      // All tasks completed, set project to "To Review"
-      try {
-        await authApi.updateProject(projectId, { status: 'To Review' });
-        // Refresh projects to show updated status
-        loadData();
-      } catch (error) {
-        console.error('Failed to update project status:', error);
-      }
-    }
-  };
+  // Function to auto-update project status based on task completion is defined above as `updateProjectStatusBasedOnTasks` (hook-safe)
 
   const handleCompleteProject = () => {
     if (completionDialog.projectId) {
       setProjects(prevProjects => 
-        prevProjects.map((project: any) => 
+        prevProjects.map((project: Project) => 
           project.id === completionDialog.projectId 
             ? { ...project, status: "Completed" }
             : project
@@ -261,53 +239,136 @@ export default function DashboardHome() {
 
   // Determine project status based on task completion
   const getProjectStatus = (projectId: number) => {
-    const { total, completed } = getTaskStats(projectId);
+    const { total } = getTaskStats(projectId);
     if (total === 0) return "No Tasks";
     const progress = getProjectProgress(projectId);
     if (progress === 100) return "Ready for Review";
     return "In Progress"; // Changed from "Not Started" to "In Progress" as default
   };
 
-  // Filter projects based on active tab
+  // Filter projects based on active tab, priority and date filters
   const getFilteredProjects = () => {
-    switch (activeTab) {
-      case "review":
-        return projects.filter((project: any) => {
-          const progress = getProjectProgress(project.id);
-          return progress === 100 && project.status !== "Completed";
-        });
-      case "completed":
-        return projects.filter((project: any) => {
+    // Start with base tab filter
+    let base = projects.filter((project: Project) => {
+      switch (activeTab) {
+        case "review":
+          return getProjectProgress(project.id) === 100 && project.status !== "Completed";
+        case "completed":
           return project.status === "Completed";
-        });
-      default:
-        return projects.filter((project: any) => {
-          const progress = getProjectProgress(project.id);
-          return progress < 100 && project.status !== "Completed";
-        });
+        default:
+          return getProjectProgress(project.id) < 100 && project.status !== "Completed";
+      }
+    });
+
+    // Helper: safely read project.priority (may be missing from API)
+    const getProjectPriorityValue = (project: Project) => {
+      const p = (project as unknown as { priority?: unknown }).priority;
+      if (p === 'High' || p === 'Medium' || p === 'Low' || p === 'Critical') return p as Priority;
+      return getProjectPriority(project.id);
+    };
+
+    // Apply priority filter
+    if (priorityFilter !== 'all') {
+      base = base.filter((project: Project) => {
+        const p = getProjectPriorityValue(project);
+        return p === priorityFilter;
+      });
     }
+
+    // Date helpers for filtering
+    const isSameDay = (isoA?: string, isoB?: string) => {
+      if (!isoA || !isoB) return false;
+      const a = new Date(isoA);
+      const b = new Date(isoB);
+      return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    };
+
+    const isDueToday = (dueIso?: string) => {
+      if (!dueIso) return false;
+      return isSameDay(dueIso, new Date().toISOString());
+    };
+
+    const isDueThisWeek = (dueIso?: string) => {
+      if (!dueIso) return false;
+      const due = new Date(dueIso);
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const endOfWeek = new Date(startOfToday);
+      endOfWeek.setDate(startOfToday.getDate() + 6);
+      const d = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+      return d.getTime() >= startOfToday.getTime() && d.getTime() <= endOfWeek.getTime();
+    };
+
+    const isOverdue = (dueIso?: string) => {
+      if (!dueIso) return false;
+      const due = new Date(dueIso);
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      return due.getTime() < startOfToday.getTime();
+    };
+
+    // Helper: safely read due date string if present
+    const getProjectDueIso = (project: Project): string | undefined => {
+      const maybe = (project as unknown as Record<string, unknown>).due_date ?? (project as unknown as Record<string, unknown>).due;
+      return typeof maybe === 'string' ? maybe : undefined;
+    };
+
+    // Apply date filter
+    if (dateFilter !== 'any') {
+      base = base.filter((project: Project) => {
+        const due = getProjectDueIso(project);
+        if (!due) return false;
+        if (dateFilter === 'today') return isDueToday(due);
+        if (dateFilter === 'this_week') return isDueThisWeek(due);
+        if (dateFilter === 'overdue') return isOverdue(due);
+        if (dateFilter === 'specific') {
+          if (!specificDate) return false;
+          // compare by day
+          return isSameDay(due, new Date(specificDate).toISOString());
+        }
+        return true;
+      });
+    }
+
+    return base;
   };
 
   const filteredProjects = getFilteredProjects();
 
   // Default priority for projects since API doesn't provide it
+  // Local priority type matching Task.priority
+  type Priority = 'High' | 'Medium' | 'Low';
   const getProjectPriority = (projectId: number): Priority => {
     const tasks = projectTasks[projectId] || [];
-    if (tasks.some((t: any) => t.priority === "High")) return "High";
-    if (tasks.some((t: any) => t.priority === "Medium")) return "Medium";
+    if (tasks.some((t: Task) => t.priority === "High")) return "High";
+    if (tasks.some((t: Task) => t.priority === "Medium")) return "Medium";
     return "Low";
   };
 
   const priorityOrder: Record<Priority, number> = { High: 0, Medium: 1, Low: 2 };
-  const sortedProjects = filteredProjects.sort((a: any, b: any) => {
+  const sortedProjects = filteredProjects.sort((a: Project, b: Project) => {
     const aPriority = getProjectPriority(a.id);
     const bPriority = getProjectPriority(b.id);
     
     if (priorityOrder[aPriority] !== priorityOrder[bPriority]) {
       return priorityOrder[aPriority] - priorityOrder[bPriority];
     }
-    return new Date(a.due || '2025-12-31').getTime() - new Date(b.due || '2025-12-31').getTime();
+  // Use project's due_date or createdAt as fallback
+  const aDue = (a.due_date || (a as unknown as Record<string, unknown>).due || a.createdAt) as string | undefined;
+  const bDue = (b.due_date || (b as unknown as Record<string, unknown>).due || b.createdAt) as string | undefined;
+  return new Date(aDue || '2025-12-31').getTime() - new Date(bDue || '2025-12-31').getTime();
   });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading projects...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -348,6 +409,51 @@ export default function DashboardHome() {
           </div>
         </div>
         <div className="flex items-center gap-4">
+          <DropdownMenu>
+            <DropdownMenuTrigger>
+              {/* use ghost variant to remove visible border and slightly larger icon */}
+              <Button variant="ghost" size="icon" className="p-0" aria-label="Filters">
+                <Funnel className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-auto max-w-[20rem] p-3">
+              <div className="flex flex-col gap-3">
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Date</div>
+                  <Select value={dateFilter} onValueChange={(v) => setDateFilter(v as 'any' | 'today' | 'this_week' | 'overdue')}>
+                    <SelectTrigger size="sm" className="w-full"><SelectValue placeholder="All dates" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="any">All dates</SelectItem>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="this_week">This week</SelectItem>
+                      <SelectItem value="overdue">Behind schedule</SelectItem>
+                      <SelectItem value="specific">Specific date</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Specific date picker (replaced native input with shadcn-style calendar picker) */}
+                {dateFilter === 'specific' && (
+                  <div className="pt-1">
+                    <CalendarPicker value={specificDate} onChange={(iso) => setSpecificDate(iso)} />
+                  </div>
+                )}
+
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Priority</div>
+                  <Select value={priorityFilter} onValueChange={(v) => setPriorityFilter(v as 'all' | 'High' | 'Medium' | 'Low')}>
+                    <SelectTrigger size="sm" className="w-full"><SelectValue placeholder="All priorities" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All priorities</SelectItem>
+                      <SelectItem value="High">High</SelectItem>
+                      <SelectItem value="Medium">Medium</SelectItem>
+                      <SelectItem value="Low">Low</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button asChild>
             <Link href="/dashboard/projects/new">
               <Plus className="h-4 w-4 mr-2" />
@@ -367,19 +473,7 @@ export default function DashboardHome() {
                     {project.due_date ? (
                       <div className="flex items-center gap-1">
                         <Calendar className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(project.due_date).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric'
-                          })}
-                        </span>
-                        {/* Overdue indicator */}
-                        {new Date(project.due_date) < new Date() && project.status !== "Completed" && (
-                          <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-medium">
-                            Overdue
-                          </span>
-                        )}
+                        <ClientDate iso={project.due_date} options={{ month: 'short', day: 'numeric', year: 'numeric' }} showOverdueBadge={true} />
                       </div>
                     ) : (
                       <span className="text-xs text-muted-foreground">No due date</span>
@@ -407,7 +501,7 @@ export default function DashboardHome() {
                       {project.status === "Completed" ? "Completed" : getProjectStatus(project.id)}
                     </span>
                   </div>
-                  {activeTab !== "review" && (
+                  {activeTab === "all" && (
                     <div onClick={(e) => e.stopPropagation()}>
                       <Button size="icon" variant="outline" className="ml-2" asChild>
                         <Link href={`/dashboard/projects/${project.id}/edit`} aria-label="Edit Project">
@@ -420,11 +514,17 @@ export default function DashboardHome() {
                   )}
                 </div>
                 <Link 
-                  href={activeTab === "review" ? `/dashboard/review?projectId=${project.id}` : `/dashboard/projects/${project.id}`} 
+                  href={
+                    activeTab === "review" 
+                      ? `/dashboard/review?projectId=${project.id}` 
+                      : activeTab === "completed" 
+                        ? `/dashboard/completed/${project.id}` 
+                        : `/dashboard/projects/${project.id}`
+                  } 
                   className="cursor-pointer flex flex-col flex-1"
                 >
                   <h2 className="text-lg font-bold mb-1 truncate hover:text-primary transition-colors">
-                    {project.name || project.title || 'Unnamed Project'}
+                    {project.name || 'Unnamed Project'}
                   </h2>
                   <p className="text-sm text-muted-foreground mb-3 truncate">
                     {project.description || 'No description'}
@@ -504,8 +604,8 @@ export default function DashboardHome() {
                     <ChevronDown className="h-4 w-4" />
                   </summary>
                   <ul className="space-y-1">
-                    {projectTasks[project.id]?.length > 0 ? (
-                      projectTasks[project.id].map((task: any) => (
+                    {(projectTasks[project.id] || []).length > 0 ? (
+                      (projectTasks[project.id] || []).map((task: Task) => (
                         <li key={task.id} className="flex items-center justify-between text-xs p-2 bg-gray-50 dark:bg-gray-800 rounded">
                           <div className="flex items-center gap-2">
                             <span className={`w-2 h-2 rounded-full ${

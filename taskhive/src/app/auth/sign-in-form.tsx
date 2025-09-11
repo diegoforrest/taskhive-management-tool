@@ -3,14 +3,14 @@
 import * as React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Eye, EyeOff, Mail, Lock, ArrowRight, Target } from "lucide-react"
+import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react"
 import Link from "next/link"
+import Image from 'next/image'
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { authApi } from "@/lib/api"
@@ -54,7 +54,7 @@ export function SignInForm() {
         password: savedPassword,
         rememberMe: true
       }))
-    } else if (emailParam) {
+  } else if (emailParam) {
       // Pre-fill email from registration redirect
       setFormData(prev => ({
         ...prev,
@@ -119,9 +119,14 @@ export function SignInForm() {
       } else {
         setError(response.message || 'Invalid credentials')
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Login error:', error)
-      setError(error.message || 'Login failed. Please try again.')
+      let message = 'Login failed. Please try again.'
+      if (typeof error === 'object' && error !== null) {
+        const errObj = error as Record<string, unknown>
+        if (typeof errObj.message === 'string') message = errObj.message
+      }
+      setError(message)
     } finally {
       setIsLoading(false)
     }
@@ -136,13 +141,15 @@ export function SignInForm() {
       <CardHeader className="space-y-1">
         <div className="flex items-center justify-center">
           <div className="flex items-center space-x-2">
-      <div className="flex items-center justify-center">
-        <img
-          src="/logo.png" // replace with your logo path
-          alt="TaskHive Logo"
-          className="h-10 w-10" // adjust size as needed
-        />
-      </div>
+            <div className="flex items-center justify-center">
+              <Image
+                src="/logo.png"
+                alt="TaskHive Logo"
+                width={40}
+                height={40}
+                className="h-10 w-10"
+              />
+            </div>
             <span className="font-bold -ml-3 text-xl">taskHive</span>
           </div>
         </div>
@@ -238,7 +245,7 @@ export function SignInForm() {
         </form>
 
         <div className="mt-4 text-center text-sm">
-          Don't have an account?{" "}
+          Don&apos;t have an account?{" "}
           <Link href="/auth/register" className="text-primary hover:underline">
             Sign up
           </Link>

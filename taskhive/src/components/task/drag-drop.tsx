@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback } from 'react';
+import ClientDate from '@/components/ui/client-date'
 import { Plus, MoreHorizontal, Calendar, Edit3, Trash2, X, GripVertical } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 type ItemType = 'project' | 'task';
 type ItemStatus = 'Todo' | 'In Progress' | 'Completed';
 type Priority = 'High' | 'Medium' | 'Low';
+type BadgeVariant = 'destructive' | 'secondary' | 'outline' | 'default';
 
 interface Item {
   id: string;
@@ -159,7 +161,7 @@ const columns: Column[] = [
   }
 ];
 
-const priorityConfig: Record<Priority, { color: string; icon: string }> = {
+const priorityConfig: Record<Priority, { color: BadgeVariant; icon: string }> = {
   'High': { color: 'destructive', icon: '🔥' },
   'Medium': { color: 'secondary', icon: '⚡' },
   'Low': { color: 'outline', icon: '📝' }
@@ -205,11 +207,7 @@ export default function KanbanBoard() {
     return items.filter(item => item.status === status);
   }, [items]);
 
-  const formatDate = (dateString: string): string => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
+  // formatDate replaced by client-only component to avoid SSR/CSR mismatches
 
   // Drag and drop handlers with enhanced visuals
   const handleDragStart = (e: React.DragEvent, item: Item): void => {
@@ -337,7 +335,7 @@ export default function KanbanBoard() {
           <Badge className={`text-xs font-bold ${typeConfig[item.type].color}`}>
             {typeConfig[item.type].label}
           </Badge>
-          <Badge variant={priorityConfig[item.priority].color as any} className="text-xs">
+          <Badge variant={priorityConfig[item.priority].color} className="text-xs">
             {priorityConfig[item.priority].icon} {item.priority}
           </Badge>
         </div>
@@ -393,7 +391,7 @@ export default function KanbanBoard() {
           {item.dueDate && (
             <div className="flex items-center">
               <Calendar className="h-3 w-3 mr-1" />
-              {formatDate(item.dueDate)}
+              <ClientDate iso={item.dueDate} options={{ month: 'short', day: 'numeric' }} />
             </div>
           )}
         </div>

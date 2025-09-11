@@ -6,7 +6,7 @@
 import * as React from "react"
 import { useTheme } from "next-themes"
 import { useRouter } from "next/navigation"
-import { Sun, Moon, Laptop, Search, User2, Settings, LogOut, X, Loader2, Calendar } from "lucide-react"
+import { Sun, Moon, Laptop, Search, User2, Settings, LogOut, Loader2, Calendar } from "lucide-react"
 import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
@@ -17,20 +17,28 @@ import {
   DropdownMenuTrigger,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { useAuth } from "@/lib/auth-context"
 import { useSearch } from "@/lib/search-context"
-import { tasksApi, Task } from "@/lib/api"
+import { tasksApi } from "@/lib/api"
+// Lightweight UI-facing task shape that covers backend and legacy fields
+type TaskLike = {
+  id: number;
+  name?: string;
+  title?: string;
+  contents?: string;
+  description?: string;
+  status?: string;
+  priority?: string;
+  assignee?: string;
+  due_date?: string | undefined;
+  dueDate?: string | undefined;
+  type?: string;
+}
 
 export function TopBar() {
   // Hydration fix: only render theme toggle after mount
@@ -42,7 +50,7 @@ export function TopBar() {
   const router = useRouter()
   const [searchOpen, setSearchOpen] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState("")
-  const [searchResults, setSearchResults] = React.useState<Task[]>([])
+  const [searchResults, setSearchResults] = React.useState<TaskLike[]>([])
   const [isSearching, setIsSearching] = React.useState(false)
   
   const handleLogout = () => {
@@ -124,12 +132,17 @@ export function TopBar() {
     try {
       // Get all tasks and filter locally for now
       // In a real app, you'd want server-side search
-      const allTasks = await tasksApi.getAllTasks()
-      const filtered = allTasks.filter(task =>
-        task.title.toLowerCase().includes(query.toLowerCase()) ||
-        (task.description && task.description.toLowerCase().includes(query.toLowerCase())) ||
-        (task.assignee && task.assignee.toLowerCase().includes(query.toLowerCase()))
-      )
+      const allTasks = await tasksApi.getAllTasks() as TaskLike[]
+      const filtered = allTasks.filter((task: TaskLike) => {
+        const title = (task.name || task.title || '').toString().toLowerCase()
+        const desc = (task.contents || task.description || '').toString().toLowerCase()
+        const assignee = (task.assignee || '').toString().toLowerCase()
+        return (
+          title.includes(query.toLowerCase()) ||
+          desc.includes(query.toLowerCase()) ||
+          assignee.includes(query.toLowerCase())
+        )
+      })
       setSearchResults(filtered)
     } catch (error) {
       console.error('Search error:', error)
@@ -149,7 +162,7 @@ export function TopBar() {
   }, [searchQuery, performSearch])
 
   // Handle search result click
-  const handleResultClick = (task: Task) => {
+  const handleResultClick = (task: TaskLike) => {
     setSearchOpen(false)
     setSearchQuery("")
     setSearchResults([])
@@ -374,7 +387,7 @@ export function TopBar() {
             ) : searchResults.length === 0 && !isSearching ? (
               <div className="px-4 sm:px-6 py-6 sm:py-8 text-center text-sm text-muted-foreground">
                 <Search className="mx-auto h-6 w-6 sm:h-8 sm:w-8 mb-2 opacity-50" />
-                <p>No results found for "{searchQuery}"</p>
+                <p>No results found for &quot;{searchQuery}&quot;</p>
                 <p className="text-xs mt-1">Try different keywords or check spelling</p>
               </div>
             ) : (
@@ -382,7 +395,7 @@ export function TopBar() {
                 <div className="px-4 sm:px-6 py-2 text-xs font-medium text-muted-foreground border-b">
                   {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} found
                 </div>
-                {searchResults.map((task) => (
+                {searchResults.map((task: TaskLike) => (
                   <button
                     key={task.id}
                     onClick={() => handleResultClick(task)}
@@ -391,10 +404,10 @@ export function TopBar() {
                     <div className="flex items-start space-x-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center flex-wrap gap-2 mb-1">
-                          <p className="font-medium text-sm truncate min-w-0 flex-1">{task.title}</p>
+                          <p className="font-medium text-sm truncate min-w-0 flex-1">{task.name || task.title}</p>
                           <div className="flex items-center gap-1 flex-shrink-0">
-                            <Badge variant={task.type === 'project' ? 'secondary' : 'outline'} className="text-xs">
-                              {task.type.toUpperCase()}
+                            <Badge variant={(task.type || '').toString() === 'project' ? 'secondary' : 'outline'} className="text-xs">
+                              {(task.type || '').toString().toUpperCase()}
                             </Badge>
                             <Badge 
                               variant={task.priority === 'High' ? 'destructive' : task.priority === 'Medium' ? 'secondary' : 'outline'}
@@ -404,16 +417,19 @@ export function TopBar() {
                             </Badge>
                           </div>
                         </div>
-                        {task.description && (
-                          <p className="text-xs text-muted-foreground truncate mb-1">{task.description}</p>
+                        {(task.contents || task.description) && (
+                          <p className="text-xs text-muted-foreground truncate mb-1">{task.contents || task.description}</p>
                         )}
                         <div className="flex items-center flex-wrap gap-2 sm:gap-3 text-xs text-muted-foreground">
                           <span className="capitalize">{task.status}</span>
                           {task.assignee && <span className="truncate">Assigned to {task.assignee}</span>}
-                          {task.dueDate && (
+                          {(task.due_date || task.dueDate) && (
                             <span className="flex items-center flex-shrink-0">
                               <Calendar className="h-3 w-3 mr-1" />
-                              Due {new Date(task.dueDate).toLocaleDateString()}
+                              {(() => {
+                                const d = task.due_date || task.dueDate
+                                return d ? `Due ${new Date(d).toLocaleDateString('en-US')}` : null
+                              })()}
                             </span>
                           )}
                         </div>

@@ -122,6 +122,21 @@ export class AuthController {
     return this.authService.updateTask(numericId, updateTaskDto);
   }
 
+  @Post('test10/create_changelog')
+  @HttpCode(HttpStatus.CREATED)
+  async createChangelog(@Body() body: { task_id?: number; project_id?: number; user_id?: number; old_status?: string; new_status?: string; remark?: string }) {
+    const { task_id, project_id, user_id, old_status, new_status, remark } = body;
+    return this.authService.createChangelog(task_id ?? null, old_status ?? null, new_status ?? null, remark ?? '', user_id ?? null, project_id ?? null);
+  }
+
+  @Get('test10/get_changelogs')
+  @HttpCode(HttpStatus.OK)
+  async getChangelogs(@Query('task_id') task_id?: string, @Query('project_id') project_id?: string) {
+    const t = task_id ? parseInt(task_id, 10) : null;
+    const p = project_id ? parseInt(project_id, 10) : null;
+    return this.authService.getChangelogs(t, p);
+  }
+
   @Post('test09/delete_project/:id')
   @HttpCode(HttpStatus.OK)
   async deleteProject(@Param('id') id: string) {

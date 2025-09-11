@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,10 +41,11 @@ export default function EditProjectPage() {
         const response = await authApi.getProject(parseInt(projectId), user.user_id);
         if (response.success && response.data) {
           const project = response.data;
+          const normalizedPriority = project.priority === 'High' ? 'High' : project.priority === 'Low' ? 'Low' : 'Medium';
           setFormData({
             name: project.name || '',
             description: project.description || '',
-            priority: project.priority || 'Medium',
+            priority: normalizedPriority,
             due_date: project.due_date ? project.due_date.split('T')[0] : '', // Format date for input
             status: project.status || 'In Progress',
           });
@@ -67,7 +67,7 @@ export default function EditProjectPage() {
     };
 
     loadProject();
-  }, [projectId]);
+  }, [projectId, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,8 +84,9 @@ export default function EditProjectPage() {
         status: formData.status,
       };
 
-      const response = await authApi.updateProject(parseInt(projectId), updateData);
-      
+  const rawResponse = await authApi.updateProject(parseInt(projectId), updateData);
+  const response = (rawResponse && typeof rawResponse === 'object' && 'success' in (rawResponse as Record<string, unknown>)) ? (rawResponse as unknown as Record<string, unknown>) : { success: true, data: rawResponse };
+
       if (response.success) {
         // Trigger sidebar refresh
         window.dispatchEvent(new Event('projectUpdated'));
@@ -93,7 +94,8 @@ export default function EditProjectPage() {
         // Redirect to project page after successful update
         router.push(`/dashboard/projects/${projectId}`);
       } else {
-        throw new Error(response.message || 'Failed to update project');
+        const msg = (response && typeof response === 'object' && 'message' in (response as Record<string, unknown>)) ? String((response as Record<string, unknown>)['message']) : 'Failed to update project';
+        throw new Error(msg);
       }
     } catch (error) {
       console.error("Error updating project:", error);
@@ -110,8 +112,9 @@ export default function EditProjectPage() {
     try {
       console.log("Deleting project:", projectId);
       
-      const response = await authApi.deleteProject(parseInt(projectId));
-      
+  const rawResponse = await authApi.deleteProject(parseInt(projectId));
+  const response = (rawResponse && typeof rawResponse === 'object' && 'success' in (rawResponse as Record<string, unknown>)) ? (rawResponse as unknown as Record<string, unknown>) : { success: true, data: rawResponse };
+
       if (response.success) {
         console.log("Project deleted successfully");
         // Trigger sidebar refresh
@@ -119,7 +122,8 @@ export default function EditProjectPage() {
         // Redirect to dashboard after deletion
         router.push("/dashboard");
       } else {
-        throw new Error(response.message || 'Failed to delete project');
+        const msg = (response && typeof response === 'object' && 'message' in (response as Record<string, unknown>)) ? String((response as Record<string, unknown>)['message']) : 'Failed to delete project';
+        throw new Error(msg);
       }
     } catch (error) {
       console.error("Error deleting project:", error);

@@ -134,7 +134,7 @@ export function PrivacyPolicy({ open, onOpenChange, onAccept }: PrivacyPolicyPro
               </p>
               <ul className="list-disc pl-6 space-y-2">
                 <li><strong>Essential Cookies:</strong> For user authentication and session management</li>
-                <li><strong>Local Storage:</strong> To remember user preferences and login information (if "Remember Me" is selected)</li>
+                <li><strong>Local Storage:</strong> To remember user preferences and login information (if &quot;Remember Me&quot; is selected)</li>
                 <li><strong>Analytics:</strong> Basic usage tracking for demonstration purposes</li>
               </ul>
             </div>
@@ -149,12 +149,12 @@ export function PrivacyPolicy({ open, onOpenChange, onAccept }: PrivacyPolicyPro
                 <li>Update or correct your personal information</li>
                 <li>Delete your account and associated data</li>
                 <li>Opt out of any analytics or tracking features</li>
-                <li>Clear your browser's local storage and cookies</li>
+                <li>Clear your browser&apos;s local storage and cookies</li>
               </ul>
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Children's Privacy</h3>
+              <h3 className="text-lg font-semibold">Children&apos;s Privacy</h3>
               <p>
                 This demonstration application is not intended for children under 13 years of age. 
                 We do not knowingly collect personal information from children under 13.
@@ -181,7 +181,7 @@ export function PrivacyPolicy({ open, onOpenChange, onAccept }: PrivacyPolicyPro
 
             <div className="bg-gray-50 border border-gray-200 p-4 rounded mt-6">
               <p className="text-xs text-gray-600">
-                <strong>Last Updated:</strong> {new Date().toLocaleDateString()}<br />
+                <strong>Last Updated:</strong> {new Date().toLocaleDateString('en-US')}<br />
                 <strong>Application:</strong> TaskHive (Demo Project)<br />
                 <strong>Status:</strong> Educational/Portfolio Demonstration Only
               </p>

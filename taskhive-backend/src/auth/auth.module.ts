@@ -9,10 +9,11 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { User } from '../entities/user.entity';
 import { Project } from '../entities/project.entity';
 import { Task } from '../entities/task.entity';
+import { ChangeLog } from '../entities/changelog.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Project, Task]),
+  TypeOrmModule.forFeature([User, Project, Task, ChangeLog]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

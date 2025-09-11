@@ -181,7 +181,7 @@ export class AuthService {
       if (updateData.due_date !== undefined) {
         updatedData.due_date = updateData.due_date ? new Date(updateData.due_date) : null;
       }
-      if (updateData.status !== undefined && ['In Progress', 'To Review', 'Completed'].includes(updateData.status)) {
+  if (updateData.status !== undefined && ['In Progress', 'To Review', 'Completed', 'On Hold', 'Request Changes'].includes(updateData.status)) {
         updatedData.status = updateData.status;
       }
 
@@ -207,6 +207,18 @@ export class AuthService {
       const project = await this.projectRepository.findOne({ where: { id: projectId } });
       if (!project) {
         throw new Error('Project not found');
+      }
+
+      // Delete related changelogs for this project and its tasks first to avoid FK violations
+      try {
+        // Delete changelogs that reference this project or any task belonging to this project in one statement
+        await this.taskRepository.manager.query(
+          'DELETE FROM `change_logs` WHERE `project_id` = ? OR `task_id` IN (SELECT `id` FROM `tasks` WHERE `project_id` = ?)',
+          [projectId, projectId]
+        );
+      } catch (e) {
+        // If changelog cleanup fails, log and continue so the error is clearer
+        console.warn('Failed to cleanup changelogs for project', projectId, e);
       }
 
       // Delete all tasks associated with this project first
@@ -321,7 +333,7 @@ export class AuthService {
       
       if (updateData.name !== undefined) updateFields.name = updateData.name;
       if (updateData.contents !== undefined) updateFields.contents = updateData.contents;
-      if (updateData.status && ['Todo', 'In Progress', 'Done'].includes(updateData.status)) {
+  if (updateData.status && ['Todo', 'In Progress', 'Done', 'On Hold', 'Request Changes'].includes(updateData.status)) {
         updateFields.status = updateData.status;
       }
       if (updateData.priority && ['Low', 'Medium', 'High', 'Critical'].includes(updateData.priority)) {
@@ -345,6 +357,45 @@ export class AuthService {
       };
     } catch (error) {
       throw new Error(`Failed to update task: ${error.message}`);
+    }
+  }
+
+  async createChangelog(taskId: number | null, oldStatus: string | null, newStatus: string | null, remark: string | null, userId: number | null, projectId: number | null) {
+    try {
+      const changelogRepo = this.taskRepository.manager.getRepository('ChangeLog');
+
+      const payload: any = {
+        description: remark || '',
+        old_status: oldStatus || null,
+        new_status: newStatus || null,
+        remark: remark || null,
+        user_id: userId || 1,
+        project_id: projectId || null,
+        task_id: taskId || null,
+      };
+
+      // Using query builder to insert into change_logs table
+      await changelogRepo.insert(payload);
+
+      return { success: true, message: 'Changelog recorded' };
+    } catch (error) {
+      console.error('Failed to create changelog:', error);
+      throw new Error(`Failed to create changelog: ${error.message}`);
+    }
+  }
+
+  async getChangelogs(taskId?: number | null, projectId?: number | null) {
+    try {
+      const changelogRepo = this.taskRepository.manager.getRepository('ChangeLog');
+      const qb = changelogRepo.createQueryBuilder('cl').select();
+      if (taskId) qb.where('cl.task_id = :taskId', { taskId });
+      if (projectId) qb.andWhere('cl.project_id = :projectId', { projectId });
+      qb.orderBy('cl.createdAt', 'DESC');
+      const rows = await qb.getMany();
+      return { success: true, data: rows };
+    } catch (error) {
+      console.error('Failed to fetch changelogs:', error);
+      throw new Error(`Failed to fetch changelogs: ${error.message}`);
     }
   }
 }

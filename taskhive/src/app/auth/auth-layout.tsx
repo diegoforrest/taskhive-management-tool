@@ -1,8 +1,10 @@
 "use client"
 import { ThemeProvider } from "@/components/theme/theme-provider"
-import { Button } from "@/components/ui/button"
-import { Moon, Sun, ArrowLeft } from "lucide-react"
-import { useTheme } from "next-themes"
+// Removed unused imports to satisfy lint rules
+// import { Button } from "@/components/ui/button"
+import { ArrowLeft } from "lucide-react"
+// import { Moon, Sun } from "lucide-react"
+// import { useTheme } from "next-themes"
 import Link from "next/link"
 import { ReactNode } from "react"
 

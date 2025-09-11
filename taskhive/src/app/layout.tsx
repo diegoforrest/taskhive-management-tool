@@ -27,7 +27,7 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} antialiased`}>
+      <body suppressHydrationWarning className={`${inter.className} antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -36,7 +36,7 @@ export default async function RootLayout({
         >
           <AuthProvider>
             <SearchProvider>
-              <SidebarProvider>
+              <SidebarProvider defaultOpen={defaultOpen}>
                 <AppSidebar />
                 <SidebarInset>
                   <TopBar />

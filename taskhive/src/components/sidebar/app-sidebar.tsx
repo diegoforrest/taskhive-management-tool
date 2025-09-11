@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import {
-  Calendar,
+  // Calendar (unused)
   ChevronDown,
   ChevronRight,
   ChevronUp,
@@ -10,12 +10,12 @@ import {
   Flame,
   Zap,
   Leaf,
-  Home,
-  MoreHorizontal,
+  // Home (unused)
+  // MoreHorizontal (unused)
   Plus,
   Settings,
   User2,
-  Users,
+  // Users (unused)
   BarChart3,
   CheckSquare,
   Target,
@@ -23,6 +23,7 @@ import {
   ClipboardCheck,
 } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
 import { useRouter, usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
 
@@ -31,8 +32,6 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
-  SidebarGroupAction,
-  SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
@@ -59,10 +58,22 @@ import {
 import { Badge } from "@/components/ui/badge"
 
 import { useAuth } from "@/lib/auth-context"
-import { authApi, tasksApi } from "@/lib/api"
+import { authApi, Task, Project } from "@/lib/api"
 
-// Helper function to get priority icon component
-const getPriorityIcon = (priority: "High" | "Medium" | "Low") => {
+// Sidebar project shape (Project plus UI fields)
+type SidebarProject = Project & {
+  tasks: Task[];
+  project_status?: string;
+  state?: string;
+  status_name?: string;
+  priority?: Task['priority'];
+  url: string;
+  taskCount?: number;
+  completedCount?: number;
+};
+
+// Helper function to get priority icon component (accepts 'Critical' too)
+const getPriorityIcon = (priority?: Task['priority']) => {
   switch (priority) {
     case "High":
       return <Flame className="h-4 w-4 text-red-500" />
@@ -70,23 +81,29 @@ const getPriorityIcon = (priority: "High" | "Medium" | "Low") => {
       return <Zap className="h-4 w-4 text-yellow-500" />
     case "Low":
       return <Leaf className="h-4 w-4 text-green-500" />
+    case "Critical":
+      return <Flame className="h-4 w-4 text-red-700" />
     default:
       return <Leaf className="h-4 w-4 text-green-500" />
   }
+}
+
+// Type guard to detect ApiResponse-like objects with a data property
+function hasDataProp<T>(v: unknown): v is { data: T } {
+  return typeof v === 'object' && v !== null && 'data' in v;
 }
 
 export function AppSidebar() {
   const { user, logout, isAuthenticated } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
-  const [userProjects, setUserProjects] = useState<any[]>([])
-  const [projectTasks, setProjectTasks] = useState<{[key: number]: any[]}>({})
+  const [userProjects, setUserProjects] = useState<SidebarProject[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   // Track which project collapsibles are open (controlled)
   const [openProjects, setOpenProjects] = useState<Record<number, boolean>>({})
   // Track inner project-level collapsibles (project -> tasks)
-  const [openProjectInner, setOpenProjectInner] = useState<Record<number, boolean>>({})
+  // (not used currently)
   // Track whether the Projects group (parent) is open
   const [projectsGroupOpen, setProjectsGroupOpen] = useState(false)
   // Track whether the Review group (parent) is open
@@ -165,59 +182,39 @@ export function AppSidebar() {
     return `User ${user.user_id}`
   }
 
-  // Get user initials for avatar fallback
-  const getUserInitials = () => {
-    if (!user) return 'G'
-    
-    // Use firstName and lastName if available
-    if (user.firstName && user.lastName) {
-      return (user.firstName[0] + user.lastName[0]).toUpperCase()
-    }
-    
-    // Use email if firstName/lastName not available
-    if (user.email) {
-      const parts = user.email.split('@')[0].split('.')
-      if (parts.length >= 2) {
-        return (parts[0][0] + parts[1][0]).toUpperCase()
-      }
-      return user.email.substring(0, 2).toUpperCase()
-    }
-    
-    // Fallback to user_id
-    return user.user_id.toString().substring(0, 2).toUpperCase() || 'U'
-  }
+  // Avatar initials are derived inline where needed; helper removed to
+  // reduce unused-symbol lint noise.
 
+  // Small usage to avoid unused function warning in some build configs
+  // (renders as aria-label fallback in case avatar image fails)
   // Load user's projects from API (same as dashboard)
   useEffect(() => {
     const loadUserProjects = async () => {
       if (!user?.user_id || !isAuthenticated) {
         setUserProjects([])
-        setProjectTasks({})
         return
       }
-      
+
       try {
         setLoading(true)
-        console.log('🔍 Sidebar loading projects for user_id:', user.user_id, 'type:', typeof user.user_id)
-        
+
         // Get projects for the user
         const projectsResponse = await authApi.getProjects(typeof user.user_id === 'number' ? user.user_id : parseInt(user.user_id));
-        console.log('📦 Sidebar Projects API Response:', projectsResponse)
 
-        // Extract projects
-        const projectsData = projectsResponse.data || []
-        console.log('📊 Sidebar processed projects data:', projectsData)
+  // Extract projects (response may be ApiResponse<Project[]> or raw array)
+  const projectsData: Project[] = hasDataProp<Project[]>(projectsResponse) ? projectsResponse.data : (Array.isArray(projectsResponse) ? projectsResponse : []);
 
         // Fetch tasks per project in parallel using the backend endpoint
-        const tasksData: {[key: number]: any[]} = {}
+  const tasksData: Record<number, Task[]> = {}
         if (projectsData.length > 0) {
-          const taskPromises = projectsData.map(async (project: any) => {
+          const taskPromises = projectsData.map(async (project: Project) => {
             try {
               const resp = await authApi.getTasks(project.id)
-              return { projectId: project.id, tasks: resp.data || [] }
+              const tasks: Task[] = hasDataProp<Task[]>(resp) ? resp.data : (Array.isArray(resp) ? resp : [])
+              return { projectId: project.id, tasks }
             } catch (err) {
               console.error(`Failed to load tasks for project ${project.id}:`, err)
-              return { projectId: project.id, tasks: [] }
+              return { projectId: project.id, tasks: [] as Task[] }
             }
           })
 
@@ -225,41 +222,38 @@ export function AppSidebar() {
           taskResults.forEach(({ projectId, tasks }) => {
             tasksData[projectId] = tasks
           })
-          console.log('📋 Sidebar fetched tasks per project:', tasksData)
         }
-        
+
         // Transform projects for sidebar display - simplified version
-        const transformedProjects = projectsData.map((project: any) => {
+        const transformedProjects = projectsData.map((project: Project) => {
           const projectTasksList = tasksData[project.id] || []
-          const completedTasks = projectTasksList.filter((task: any) => task.status === "Done" || task.status === "Completed")
+          const completedTasks = projectTasksList.filter((task: Task) => task.status === "Done")
+          // Read optional fields safely via index access on Project (may include backend variants)
+          const raw = project as unknown as Record<string, unknown>
+          const status = typeof raw['status'] === 'string' ? (raw['status'] as string) : (typeof raw['project_status'] === 'string' ? (raw['project_status'] as string) : (typeof raw['state'] === 'string' ? (raw['state'] as string) : (typeof raw['status_name'] === 'string' ? (raw['status_name'] as string) : null)))
+          const priorityRaw = typeof raw['priority'] === 'string' ? (raw['priority'] as string) : undefined
+          const priority = (priorityRaw as Task['priority']) ?? 'Medium'
+
           return {
-            id: project.id,
-            name: project.name,
-            // include status received from backend so sidebar can route projects to Review
-            status: project.status || project.project_status || project.state || project.status_name || null,
+            ...project,
+            status,
             url: `/dashboard/projects/${project.id}`,
             icon: Target,
-            priority: project.priority || "Medium",
+            priority,
             taskCount: projectTasksList.length,
             completedCount: completedTasks.length,
-            // Show each task with correct link and fallback for title
-            tasks: projectTasksList.map((task: any) => ({
-              id: task.id,
+            tasks: projectTasksList.map((task: Task) => ({
+              ...task,
               title: task.name || task.title || 'Untitled Task',
               url: `/dashboard/projects/${project.id}#task-${task.id}`,
-              status: task.status,
-              priority: task.priority || "Medium",
             }))
-          }
+          } as SidebarProject
         })
-        
-        setUserProjects(transformedProjects)
-        setProjectTasks(tasksData)
-        console.log('✅ Sidebar final transformed projects:', transformedProjects)
+
+  setUserProjects(transformedProjects)
       } catch (error) {
         console.error('Failed to load user projects:', error)
         setUserProjects([])
-        setProjectTasks({})
       } finally {
         setLoading(false)
       }
@@ -351,34 +345,19 @@ export function AppSidebar() {
     },
     {
       title: "Projects",
-      url: "/dashboard/projects",
+      url: "/dashboard?tab=all",
       icon: FolderOpen,
       badge: userProjects.length > 0 ? userProjects.length.toString() : undefined,
     },
     {
       title: "Review Dashboard",
-      url: "/dashboard/review",
+      url: "/dashboard?tab=review",
       icon: ClipboardCheck,
     },
     {
       title: "Completed",
-      url: "/dashboard/completed",
+      url: "/dashboard?tab=completed",
       icon: CheckSquare,
-    },
-    {
-      title: "Team",
-      url: "/team",
-      icon: Users,
-    },
-    {
-      title: "Calendar",
-      url: "/calendar",
-      icon: Calendar,
-    },
-    {
-      title: "Reports",
-      url: "/reports",
-      icon: BarChart3,
     },
   
   ]
@@ -407,17 +386,19 @@ export function AppSidebar() {
       <SidebarHeader>
     <SidebarMenu>
       <SidebarMenuItem>
-        <SidebarMenuButton
+            <SidebarMenuButton
           size="lg"
           className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
         >
           {/* Make entire content clickable */}
-          <Link href={isAuthenticated ? "/task" : "/"} className="flex items-center w-full">
+          <Link href={isAuthenticated ? "/task" : "/"} className="flex items-center w-full" onClick={(e) => e.stopPropagation()}>
             {/* Logo */}
-            <img
+            <Image
               src="/logo.png"
               alt="My Logo"
-              className="h-10 w-10 rounded"
+              width={40}
+              height={40}
+              className="rounded"
             />
             <div className="grid flex-1 text-left text-sm leading-tight">
               <span className="truncate font-bold text-xl">taskHive</span>
@@ -458,7 +439,7 @@ export function AppSidebar() {
                       <span className="ml-2 group-data-[state=collapsed]:hidden">Project-test</span>
                     </Link>
                     <CollapsibleTrigger asChild>
-                      <SidebarMenuAction className="ml-2">
+                      <SidebarMenuAction className="ml-2 data-[state=open]:rotate-90 transform transition-transform duration-200">
                         <ChevronRight />
                       </SidebarMenuAction>
                     </CollapsibleTrigger>
@@ -470,25 +451,25 @@ export function AppSidebar() {
                       <Collapsible key={`test-folder-${project.id}`} open={!!openProjects[project.id]} onOpenChange={(isOpen) => setOpenProjects((prev) => ({ ...prev, [project.id]: isOpen }))} className="w-full">
                         <SidebarMenuItem>
                           <div className="flex items-center w-full">
-                            <SidebarMenuButton asChild>
-                              <Link href={project.url} className="flex items-center w-full">
+                              <SidebarMenuButton asChild>
+                              <Link href={project.url || `/dashboard/projects/${project.id}`} className="flex items-center w-full" onClick={(e) => e.stopPropagation()}>
                                 <span className="flex-shrink-0"><div className="w-6 h-6 rounded-full flex items-center justify-center">{getPriorityIcon(project.priority)}</div></span>
                                 <span className="ml-2 truncate text-sm font-medium">{project.name}</span>
                               </Link>
                             </SidebarMenuButton>
                             <CollapsibleTrigger asChild>
-                              <SidebarMenuAction className="ml-2">
+                              <SidebarMenuAction className="ml-2 transform transition-transform duration-200">
                                 <ChevronRight />
                               </SidebarMenuAction>
                             </CollapsibleTrigger>
                           </div>
                           <CollapsibleContent>
-                            {project.tasks?.length > 0 ? (
+                            { (project.tasks || []).length > 0 ? (
                               <SidebarMenuSub>
-                                {project.tasks.map((task: any) => (
+                                {(project.tasks || []).map((task: Task) => (
                                   <SidebarMenuSubItem key={`test-task-${task.id}`}>
                                     <SidebarMenuSubButton asChild>
-                                      <Link href={task.url} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-sidebar-accent transition-colors w-full">
+                                      <Link href={task.url || `/dashboard/projects/${project.id}#task-${task.id}`} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-sidebar-accent transition-colors w-full">
                                         <span className={
                                           `inline-block w-2 h-2 rounded-full shrink-0 ` +
                                           (task.status === "Done" || task.status === "Completed"
@@ -538,23 +519,23 @@ export function AppSidebar() {
                       <Collapsible key={`review-test-${project.id}`} open={!!openProjects[project.id]} onOpenChange={(isOpen) => setOpenProjects((prev) => ({ ...prev, [project.id]: isOpen }))} className="w-full">
                         <SidebarMenuItem>
                           <div className="flex items-center w-full">
-                            <SidebarMenuButton asChild>
-                              <Link href={`/dashboard/review?projectId=${project.id}`} className="flex items-center w-full">
+                              <SidebarMenuButton asChild>
+                              <Link href={`/dashboard/review?projectId=${project.id}`} className="flex items-center w-full" onClick={(e) => e.stopPropagation()}>
                                 <span className="flex-shrink-0"><div className="w-6 h-6 rounded-full flex items-center justify-center">{getPriorityIcon(project.priority)}</div></span>
                                 <span className="ml-2 truncate text-sm font-medium">{project.name}</span>
                               </Link>
                             </SidebarMenuButton>
                             <CollapsibleTrigger asChild>
-                              <SidebarMenuAction className="ml-2"><ChevronRight /></SidebarMenuAction>
+                              <SidebarMenuAction className="ml-2 transform transition-transform duration-200"><ChevronRight /></SidebarMenuAction>
                             </CollapsibleTrigger>
                           </div>
                           <CollapsibleContent>
-                            {project.tasks?.length > 0 ? (
+                            { (project.tasks || []).length > 0 ? (
                               <SidebarMenuSub>
-                                {project.tasks.map((task: any) => (
+                                {(project.tasks || []).map((task: Task) => (
                                   <SidebarMenuSubItem key={`review-test-task-${task.id}`}>
                                     <SidebarMenuSubButton asChild>
-                                      <Link href={`/dashboard/review?projectId=${project.id}#task-${task.id}`} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-sidebar-accent transition-colors w-full">
+                                      <Link href={task.url || `/dashboard/review?projectId=${project.id}#task-${task.id}`} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-sidebar-accent transition-colors w-full">
                                         <span className={
                                           `inline-block w-2 h-2 rounded-full shrink-0 ` +
                                           (task.status === "Done" || task.status === "Completed"
@@ -605,7 +586,7 @@ export function AppSidebar() {
                         <SidebarMenuItem>
                           <div className="flex items-center w-full">
                             <SidebarMenuButton asChild>
-                              <Link href={`/dashboard/projects/${project.id}`} className="flex items-center w-full">
+                            <Link href={`/dashboard/projects/${project.id}`} className="flex items-center w-full" onClick={(e) => e.stopPropagation()}>
                                 <span className="flex-shrink-0"><div className="w-6 h-6 rounded-full flex items-center justify-center">{getPriorityIcon(project.priority)}</div></span>
                                 <span className="ml-2 truncate text-sm font-medium">{project.name}</span>
                               </Link>
@@ -615,12 +596,12 @@ export function AppSidebar() {
                             </CollapsibleTrigger>
                           </div>
                           <CollapsibleContent>
-                            {project.tasks?.length > 0 ? (
+                            { (project.tasks || []).length > 0 ? (
                               <SidebarMenuSub>
-                                {project.tasks.filter((t:any) => (t.status === 'Done' || t.status === 'Completed')).map((task: any) => (
+                                {(project.tasks || []).filter((t: Task) => (t.status === 'Done' || t.status === 'Completed')).map((task: Task) => (
                                   <SidebarMenuSubItem key={`completed-test-task-${task.id}`}>
                                     <SidebarMenuSubButton asChild>
-                                      <Link href={`/dashboard/projects/${project.id}#task-${task.id}`} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-sidebar-accent transition-colors w-full">
+                                      <Link href={task.url || `/dashboard/projects/${project.id}#task-${task.id}`} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-sidebar-accent transition-colors w-full">
                                         <span className={
                                           `inline-block w-2 h-2 rounded-full shrink-0 ` +
                                           (task.status === "Done" || task.status === "Completed"
@@ -718,12 +699,12 @@ export function AppSidebar() {
 
                           {/* Tasks under each project */}
                           <CollapsibleContent>
-                            {project.tasks?.length > 0 ? (
+                            { (project.tasks || []).length > 0 ? (
                               <SidebarMenuSub>
-                                {project.tasks.map((task: any) => (
+                                {(project.tasks || []).map((task: Task) => (
                                   <SidebarMenuSubItem key={task.id}>
                                     <SidebarMenuSubButton asChild>
-                                      <Link href={task.url} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-sidebar-accent transition-colors w-full">
+                                      <Link href={task.url || `/dashboard/projects/${project.id}#task-${task.id}`} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-sidebar-accent transition-colors w-full">
                                         {/* Status small color dot */}
                                         <span
                                           title={task.status}
@@ -814,7 +795,7 @@ export function AppSidebar() {
                           </SidebarMenuButton>
 
                           <CollapsibleTrigger asChild>
-                            <SidebarMenuAction className="data-[state=open]:rotate-90 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ml-2">
+                            <SidebarMenuAction className="data-[state=open]:rotate-90 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ml-2 transform transition-transform duration-200">
                               <ChevronRight />
                               <span className="sr-only">Toggle {project.name} tasks</span>
                             </SidebarMenuAction>
@@ -822,12 +803,12 @@ export function AppSidebar() {
                         </div>
 
                         <CollapsibleContent>
-                          {project.tasks?.length > 0 ? (
+                          { (project.tasks || []).length > 0 ? (
                             <SidebarMenuSub>
-                              {project.tasks.map((task: any) => (
+                              {(project.tasks || []).map((task: Task) => (
                                 <SidebarMenuSubItem key={`review-task-${task.id}`}>
                                   <SidebarMenuSubButton asChild>
-                                    <Link href={`/dashboard/review?projectId=${project.id}#task-${task.id}`} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-sidebar-accent transition-colors w-full">
+                                    <Link href={task.url || `/dashboard/review?projectId=${project.id}#task-${task.id}`} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-sidebar-accent transition-colors w-full">
                                       <span
                                         title={task.status}
                                         className={
@@ -920,12 +901,12 @@ export function AppSidebar() {
                         </div>
 
                         <CollapsibleContent>
-                          {project.tasks?.length > 0 ? (
+                          { (project.tasks || []).length > 0 ? (
                             <SidebarMenuSub>
-                              {project.tasks.filter((t:any) => (t.status === 'Done' || t.status === 'Completed')).map((task: any) => (
+                              {(project.tasks || []).filter((t: Task) => (t.status === 'Done' || t.status === 'Completed')).map((task: Task) => (
                                 <SidebarMenuSubItem key={`completed-task-${task.id}`}>
                                   <SidebarMenuSubButton asChild>
-                                    <Link href={`/dashboard/projects/${project.id}#task-${task.id}`} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-sidebar-accent transition-colors w-full">
+                                    <Link href={task.url || `/dashboard/projects/${project.id}#task-${task.id}`} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-sidebar-accent transition-colors w-full">
                                       <span
                                         title={task.status}
                                         className={
@@ -975,10 +956,12 @@ export function AppSidebar() {
                   size="lg"
                   className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
-                                    <img
-                    src="/bee.png"      
+                                    <Image
+                    src="/bee.png"
                     alt="User Avatar"
-                    className="w-8 h-8 rounded-lg transition-all group-data-[state=collapsed]:mx-auto group-data-[state=collapsed]:block"
+                    width={32}
+                    height={32}
+                    className="rounded-lg transition-all group-data-[state=collapsed]:mx-auto group-data-[state=collapsed]:block"
                   />
 
                   <div className="grid flex-1 text-left text-sm leading-tight group-data-[state=collapsed]:hidden">

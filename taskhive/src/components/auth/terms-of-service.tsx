@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+// import { useState } from "react" // not used
 import {
   Dialog,
   DialogContent,
@@ -52,7 +52,7 @@ export function TermsOfService({ open, onOpenChange, onAccept }: TermsOfServiceP
             <section>
               <h3 className="font-semibold text-lg mb-2">3. User Accounts</h3>
               <p className="text-muted-foreground">
-                You may create an account to test the application's features. Please do not use real sensitive information as this is a demonstration environment.
+                You may create an account to test the application&apos;s features. Please do not use real sensitive information as this is a demonstration environment.
               </p>
               <p className="text-muted-foreground mt-2">
                 You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account.
@@ -82,7 +82,7 @@ export function TermsOfService({ open, onOpenChange, onAccept }: TermsOfServiceP
             <section>
               <h3 className="font-semibold text-lg mb-2">6. Limitation of Liability</h3>
               <p className="text-muted-foreground">
-                TaskHive is provided "as is" without any warranties. The creators are not liable for any damages arising from the use of this demonstration application.
+                TaskHive is provided &quot;as is&quot; without any warranties. The creators are not liable for any damages arising from the use of this demonstration application.
               </p>
             </section>
 

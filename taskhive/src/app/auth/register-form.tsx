@@ -3,17 +3,16 @@
 import * as React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Target, Building } from "lucide-react"
+import { Eye, EyeOff, Mail, Lock, User, ArrowRight } from "lucide-react"
 import Link from "next/link"
+import Image from 'next/image'
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { authApi } from "@/lib/api"
 import { TermsOfService } from "@/components/auth/terms-of-service"
 import { PrivacyPolicy } from "@/components/auth/privacy-policy"
@@ -91,9 +90,14 @@ export function RegisterForm() {
       } else {
         setError(response.message || 'Registration failed.')
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Registration error:', error)
-      setError(error.message || 'Registration failed. Please try again.')
+      let message = 'Registration failed. Please try again.'
+      if (typeof error === 'object' && error !== null) {
+        const errObj = error as Record<string, unknown>
+        if (typeof errObj.message === 'string') message = errObj.message
+      }
+      setError(message)
     } finally {
       setIsLoading(false)
     }
@@ -120,9 +124,11 @@ export function RegisterForm() {
         <div className="flex items-center justify-center">
           <div className="flex items-center space-x-2">
             <div className="flex items-center justify-center">
-              <img
+              <Image
                 src="/logo.png"
                 alt="TaskHive Logo"
+                width={40}
+                height={40}
                 className="h-10 w-10"
               />
             </div>
@@ -302,7 +308,7 @@ export function RegisterForm() {
         </form>
 
         <div className="mt-4 text-center text-sm">
-          Already have an account?{" "}
+    Already have an account?{" "}
           <Link href="/auth/sign-in" className="text-primary hover:underline">
             Sign in
           </Link>
