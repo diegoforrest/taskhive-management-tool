@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Clock, CheckCircle, XCircle, Pause, MessageSquare, Calendar, User, ArrowLeft, AlertCircle } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Pause, MessageSquare, Calendar, User, ArrowLeft, AlertCircle, Flame, Gauge, Leaf, PlayCircle } from 'lucide-react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -82,7 +82,7 @@ const mapChangelogsToReview = (rows: ChangeLogEntry[]) => {
     id: String(r.id),
     taskId: r.task_id || 0,
     reviewerId: String(r.user_id || 'system'),
-    reviewerName: 'System',
+    reviewerName: 'Senior Dev',
     action: (r.new_status || '').toLowerCase().includes('request') ? 'request_changes' : 
            (r.new_status || '').toLowerCase().includes('hold') ? 'hold_discussion' : 'approve',
     reviewType: 'general_review',
@@ -134,11 +134,11 @@ const mapChangelogsToReview = (rows: ChangeLogEntry[]) => {
 
 const reviewActionConfig = {
   approve: {
-    label: 'Approve & Complete',
+    label: 'Approve Task',
     icon: CheckCircle,
-    color: 'bg-green-500 hover:bg-green-600',
-    textColor: 'text-green-700',
-    bgColor: 'bg-green-50'
+    color: '!bg-green-500 hover:bg-green-600',
+    textColor: '!text-green-700',
+    bgColor: '!bg-green-100'
   },
   request_changes: {
     label: 'Request Changes',
@@ -150,17 +150,17 @@ const reviewActionConfig = {
   hold_discussion: {
     label: 'Hold for Discussion',
     icon: Pause,
-    color: 'bg-yellow-500 hover:bg-yellow-600',
-    textColor: 'text-yellow-700',
-    bgColor: 'bg-yellow-50'
+    color: 'bg-orange-500 hover:bg-orange-600',
+    textColor: 'text-orange-400',
+    bgColor: 'bg-orange-50'
   }
 };
 
 const reviewStatusConfig = {
-  pending: { label: 'Pending Review', color: 'bg-blue-100 text-blue-800' },
-  approved: { label: 'Approved', color: 'bg-green-100 text-green-800' },
-  changes_requested: { label: 'Changes Requested', color: 'bg-red-100 text-red-800' },
-  on_hold: { label: 'On Hold', color: 'bg-yellow-100 text-yellow-800' }
+  pending: { label: 'Pending Review', color: 'bg-blue-100 text-blue-700' },
+  approved: { label: 'Approved', color: 'bg-green-100 text-green-700' },
+  changes_requested: { label: 'Changes Requested', color: 'bg-red-100 text-red-700' },
+  on_hold: { label: 'On Hold', color: 'bg-orange-100 text-orange-700' }
 };
 
 interface ReviewDashboardProps {
@@ -351,7 +351,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
           id: String(r.id),
           taskId: r.task_id || target.id,
           reviewerId: String(r.user_id || 'system'),
-          reviewerName: 'System',
+          reviewerName: 'Senior Dev',
           action: (r.new_status || '').toLowerCase().includes('request') ? 'request_changes' : 
                  (r.new_status || '').toLowerCase().includes('hold') ? 'hold_discussion' : 'approve',
           reviewType: 'general_review',
@@ -400,7 +400,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
           0,
           'Done',
           'Completed',
-          `Project approved by team leader`,
+          `Project approved by Senior Dev`,
           projectId,
           Number(user?.user_id ?? 1)
         );
@@ -454,7 +454,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
           id: String(r.id),
           taskId: r.task_id || task.id,
           reviewerId: String(r.user_id || 'system'),
-          reviewerName: 'System',
+          reviewerName: 'Senior Dev',
           action: (r.new_status || '').toLowerCase().includes('request') ? 'request_changes' : 
                  (r.new_status || '').toLowerCase().includes('hold') ? 'hold_discussion' : 'approve',
           reviewType: 'general_review',
@@ -583,21 +583,19 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                         }
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                    <span className={`text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 ${
                       currentProject.priority === 'High' ? 'bg-red-100 text-red-700' : 
                       currentProject.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 
                       'bg-gray-100 text-gray-700'
                     }`}>
-                      {currentProject.priority === 'High' && '🔥 '}
-                      {currentProject.priority === 'Medium' && '⚡ '}
-                      {currentProject.priority === 'Low' && '🌱 '}
-                      <span className="hidden sm:inline">Priority: </span>
+                      {currentProject.priority === 'High' && <Flame className="inline h-3 w-3" aria-hidden />}
+                      {currentProject.priority === 'Medium' && <Gauge className="inline h-3 w-3" aria-hidden />}
+                      {currentProject.priority === 'Low' && <Leaf className="inline h-3 w-3" aria-hidden />}
                       {currentProject.priority}
                     </span>
-                    <span className="text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 bg-yellow-100 text-yellow-700">
-                      <AlertCircle className="h-3 w-3" />
-                      <span className="hidden sm:inline">Status: </span>
-                      Ready for Review
+                    <span className="text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 bg-purple-100 text-purple-700">
+                      <PlayCircle className="h-3 w-3" />
+                      To Review
                     </span>
                   </div>
                 </div>
@@ -610,7 +608,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                     <span className="text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 bg-blue-100 text-blue-700">
                       <CheckCircle className="h-3 w-3" />
                       <span className="hidden sm:inline">Status: </span>
-                      Team Review Center
+                      TaskHive Err
                     </span>
                   </div>
                 </div>
@@ -624,7 +622,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
               <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
                 <DialogTrigger asChild>
                   <Button 
-                    className={`${allProjectApproved ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-gray-200 text-gray-600 cursor-not-allowed'}`}
+                    className={`${allProjectApproved ? 'bg-green-400 hover:bg-green-500 text-black' : 'bg-gray-200 text-gray-600 cursor-not-allowed'}`}
                     disabled={submitting || !allProjectApproved}
                     title={allProjectApproved ? 'Approve this project' : 'All tasks must be approved before approving the project'}
                   >
@@ -637,7 +635,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                   <DialogHeader>
                     <DialogTitle>Confirm Project Approval</DialogTitle>
                   </DialogHeader>
-                  <p>Are you sure you want to approve this project and mark it as Completed? This will update all visible tasks and set the project status to Completed.</p>
+                  <p>Are you sure you want to approve this project and mark it as Completed? This will update all visible tasks and set the project status to Completed</p>
                   <div className="flex justify-end gap-2 mt-4">
                     <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancel</Button>
                     <Button onClick={async () => {
@@ -667,14 +665,14 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
             <>
               <h1 className="text-3xl font-bold tracking-tight">{currentProjectTitle}</h1>
               <p className="text-muted-foreground">
-                {currentProjectDescription || 'Review all completed tasks for this project and provide team feedback'}
+                {currentProjectDescription || 'Taskhive Err'}
               </p>
             </>
           ) : (
             <>
-              <h1 className="text-3xl font-bold tracking-tight">Team Review Dashboard</h1>
+              <h1 className="text-3xl font-bold tracking-tight">TaskHive Err</h1>
               <p className="text-muted-foreground">
-                Review completed tasks and provide feedback to your team
+                TaskHive Err
               </p>
             </>
           )}
@@ -682,7 +680,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className={`cursor-pointer transition-all ${reviewFilter === 'pending' ? 'ring-2 ring-blue-500' : 'hover:shadow-md'}`} 
+          <Card className={`cursor-pointer transition-all ${reviewFilter === 'pending' ? 'ring-2 ring-blue-600' : 'hover:shadow-md'}`} 
                 onClick={() => setReviewFilter('pending')}>
             <CardContent className="p-4">
               <div className="flex items-center space-x-2">
@@ -695,40 +693,40 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
             </CardContent>
           </Card>
 
-          <Card className={`cursor-pointer transition-all ${reviewFilter === 'approved' ? 'ring-2 ring-green-500' : 'hover:shadow-md'}`}
+          <Card className={`cursor-pointer transition-all ${reviewFilter === 'approved' ? 'ring-2 ring-green-700' : 'hover:shadow-md'}`}
                 onClick={() => setReviewFilter('approved')}>
             <CardContent className="p-4">
               <div className="flex items-center space-x-2">
-                <CheckCircle className="h-5 w-5 text-green-500" />
+                <CheckCircle className="h-5 w-5 text-green-700" />
                 <div>
                   <p className="text-sm text-muted-foreground">Approved</p>
-                  <p className="text-2xl font-bold text-green-600">{stats.approved}</p>
+                  <p className="text-2xl font-bold text-green-700">{stats.approved}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className={`cursor-pointer transition-all ${reviewFilter === 'changes_requested' ? 'ring-2 ring-red-500' : 'hover:shadow-md'}`}
+          <Card className={`cursor-pointer transition-all ${reviewFilter === 'changes_requested' ? 'ring-2 ring-red-700' : 'hover:shadow-md'}`}
                 onClick={() => setReviewFilter('changes_requested')}>
             <CardContent className="p-4">
               <div className="flex items-center space-x-2">
-                <XCircle className="h-5 w-5 text-red-500" />
+                <XCircle className="h-5 w-5 text-red-700" />
                 <div>
                   <p className="text-sm text-muted-foreground">Changes Requested</p>
-                  <p className="text-2xl font-bold text-red-600">{stats.changesRequested}</p>
+                  <p className="text-2xl font-bold text-red-700">{stats.changesRequested}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className={`cursor-pointer transition-all ${reviewFilter === 'on_hold' ? 'ring-2 ring-yellow-500' : 'hover:shadow-md'}`}
+          <Card className={`cursor-pointer transition-all ${reviewFilter === 'on_hold' ? 'ring-2 ring-orange-400' : 'hover:shadow-md'}`}
                 onClick={() => setReviewFilter('on_hold')}>
             <CardContent className="p-4">
               <div className="flex items-center space-x-2">
-                <Pause className="h-5 w-5 text-yellow-500" />
+                <Pause className="h-5 w-5 text-orange-400" />
                 <div>
                   <p className="text-sm text-muted-foreground">On Hold</p>
-                  <p className="text-2xl font-bold text-yellow-600">{stats.onHold}</p>
+                  <p className="text-2xl font-bold text-orange-400">{stats.onHold}</p>
                 </div>
               </div>
             </CardContent>
@@ -799,17 +797,12 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                             {reviewStatusConfig[task.reviewStatus || 'pending'].label}
                           </Badge>
                           {task.needsReview && (
-                            <Badge variant="outline" className="text-blue-600 border-blue-600">
+                            <Badge variant="outline" className="text-white bg-black">
                               Needs Review
                             </Badge>
                           )}
                         </div>
-                        
-                        {task.projectTitle && (
-                          <p className="text-sm text-blue-600 font-medium mb-1">
-                            📁 {task.projectTitle}
-                          </p>
-                        )}
+
                         
                         {task.description && (
                           <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
@@ -843,7 +836,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                               id: String(r.id),
                               taskId: r.task_id || task.id,
                               reviewerId: String(r.user_id || 'system'),
-                              reviewerName: 'System',
+                              reviewerName: 'Senior Dev',
                               action: (r.new_status || '').toLowerCase().includes('request') ? 'request_changes' : 
                                      (r.new_status || '').toLowerCase().includes('hold') ? 'hold_discussion' : 'approve',
                               reviewType: 'general_review',
@@ -861,7 +854,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                           }
                         }}>
                           <MessageSquare className="h-4 w-4 mr-1" />
-                          History ({task.reviewNotes ? task.reviewNotes.length : 0})
+                          Feedback's ({task.reviewNotes ? task.reviewNotes.length : 0})
                         </Button>
 
                         {/* Add Review Button */}
@@ -870,7 +863,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                           setReviewNotes('');
                           setChangeDetails('');
                           setSelectedAction('approve');
-                        }}>Review</Button>
+                        }}>Add Feedback</Button>
                       </div>
                     </div>
                   </div>
@@ -888,7 +881,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
       }}>
         <DialogContent className="max-w-2xl max-h-[80vh]">
           <DialogHeader>
-            <DialogTitle>Review History - {selectedTaskForHistory?.title}</DialogTitle>
+            <DialogTitle>Feedback history - {selectedTaskForHistory?.title}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 max-h-96 overflow-y-auto">
@@ -905,7 +898,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
                           <span className="font-medium">{review.reviewerName}</span>
-                          <Badge className={actionConfig.textColor.replace('text-', 'bg-').replace('-700', '-100')}>
+                          <Badge className={`${actionConfig.bgColor ?? ''} ${actionConfig.textColor ?? ''}`}>
                             {actionConfig.label}
                           </Badge>
                           <span className="text-xs text-muted-foreground">
@@ -945,7 +938,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
       }}>
         <DialogContent className="max-w-4xl max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle>Add Review - {selectedTaskForReview?.title}</DialogTitle>
+            <DialogTitle>Add Feedback - {selectedTaskForReview?.title}</DialogTitle>
           </DialogHeader>
 
           <div className="flex-1 overflow-hidden">
@@ -959,8 +952,8 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                   <SelectContent>
                     {Object.entries(reviewActionConfig).map(([key, config]) => (
                       <SelectItem key={key} value={key}>
-                        <div className="flex items-center gap-2">
-                          <config.icon className="h-4 w-4" />
+                        <div className={`flex items-center gap-2 ${config.textColor ?? ''}`}>
+                          <config.icon className={`h-4 w-4 ${config.textColor ?? ''}`} />
                           {config.label}
                         </div>
                       </SelectItem>
@@ -975,7 +968,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                   value={reviewNotes}
                   onChange={(e) => setReviewNotes(e.target.value)}
                   placeholder="Provide detailed feedback..."
-                  className="min-h-[100px]"
+                  className="min-h-[100px] max-h-56 overflow-auto resize-none"
                 />
               </div>
 
@@ -986,7 +979,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                     value={changeDetails}
                     onChange={(e) => setChangeDetails(e.target.value)}
                     placeholder="Describe specific changes that need to be made..."
-                    className="min-h-[80px]"
+                    className="min-h-[100px] max-h-56 overflow-auto resize-none"
                   />
                 </div>
               )}

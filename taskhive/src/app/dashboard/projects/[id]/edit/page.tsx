@@ -205,16 +205,15 @@ export default function EditProjectPage() {
                         <SelectValue placeholder="Select priority" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="High">🔥 High Priority</SelectItem>
-                        <SelectItem value="Medium">⚡ Medium Priority</SelectItem>
-                        <SelectItem value="Low">🌱 Low Priority</SelectItem>
+                        <SelectItem value="High">High Priority</SelectItem>
+                        <SelectItem value="Medium">Medium Priority</SelectItem>
+                        <SelectItem value="Low">Low Priority</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="dueDate" className="flex items-center gap-1">
-                      <Calendar className="h-4 w-4" />
                       Due Date
                     </Label>
                     <Input
@@ -233,9 +232,9 @@ export default function EditProjectPage() {
                         <SelectValue placeholder="Select project status" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="In Progress">🚀 In Progress</SelectItem>
-                        <SelectItem value="To Review">👀 To Review</SelectItem>
-                        <SelectItem value="Completed">✅ Completed</SelectItem>
+                        <SelectItem value="In Progress">In Progress</SelectItem>
+                        <SelectItem value="To Review">To Review</SelectItem>
+                        <SelectItem value="Completed">Completed</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

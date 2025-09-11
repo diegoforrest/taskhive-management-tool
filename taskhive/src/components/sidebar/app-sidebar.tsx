@@ -76,15 +76,15 @@ type SidebarProject = Project & {
 const getPriorityIcon = (priority?: Task['priority']) => {
   switch (priority) {
     case "High":
-      return <Flame className="h-4 w-4 text-red-500" />
+  return <Flame className="h-4 w-4 text-red-600" />
     case "Medium":
-      return <Zap className="h-4 w-4 text-yellow-500" />
+  return <Zap className="h-4 w-4 text-yellow-400" />
     case "Low":
-      return <Leaf className="h-4 w-4 text-green-500" />
+  return <Leaf className="h-4 w-4 text-gray-500" />
     case "Critical":
-      return <Flame className="h-4 w-4 text-red-700" />
+  return <Flame className="h-4 w-4 text-red-700" />
     default:
-      return <Leaf className="h-4 w-4 text-green-500" />
+  return <Leaf className="h-4 w-4 text-gray-500" />
   }
 }
 
@@ -479,7 +479,7 @@ export function AppSidebar() {
                                             : "bg-gray-400")
                                         } />
                                         <span className="truncate flex-1 text-sm">{task.title}</span>
-                                        <Badge className={task.priority === 'High' ? 'bg-red-100 text-red-700' : task.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}>
+                                        <Badge className={task.priority === 'High' ? 'bg-red-100 text-red-700' : task.priority === 'Medium' ? 'bg-yellow-50 text-yellow-700' : 'bg-gray-100 text-gray-700'}>
                                           {task.priority}
                                         </Badge>
                                       </Link>
@@ -545,7 +545,7 @@ export function AppSidebar() {
                                             : "bg-gray-400")
                                         } />
                                         <span className="truncate flex-1 text-sm">{task.title}</span>
-                                        <Badge className={task.priority === 'High' ? 'bg-red-100 text-red-700' : task.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}>
+                                        <Badge className={task.priority === 'High' ? 'bg-red-100 text-red-700' : task.priority === 'Medium' ? 'bg-yellow-50 text-yellow-700' : 'bg-gray-100 text-gray-700'}>
                                           {task.priority}
                                         </Badge>
                                       </Link>
@@ -611,7 +611,7 @@ export function AppSidebar() {
                                             : "bg-gray-400")
                                         } />
                                         <span className="truncate flex-1 text-sm">{task.title}</span>
-                                        <Badge className={task.priority === 'High' ? 'bg-red-100 text-red-700' : task.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}>
+                                        <Badge className={task.priority === 'High' ? 'bg-red-100 text-red-700' : task.priority === 'Medium' ? 'bg-yellow-50 text-yellow-700' : 'bg-gray-100 text-gray-700'}>
                                           {task.priority}
                                         </Badge>
                                       </Link>
@@ -723,7 +723,7 @@ export function AppSidebar() {
 
                                         {/* Priority pill (shadcn Badge) */}
                                         <Badge className={
-                                          task.priority === 'High' ? 'bg-red-100 text-red-700' : task.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'
+                                          task.priority === 'High' ? 'bg-red-100 text-red-700' : task.priority === 'Medium' ? 'bg-yellow-50 text-yellow-700' : 'bg-gray-100 text-gray-700'
                                         }>
                                           {task.priority === 'High' && '🔥 '}
                                           {task.priority === 'Medium' && '⚡ '}
@@ -822,7 +822,7 @@ export function AppSidebar() {
                                       />
                                       <span className="truncate flex-1 text-sm">{task.title}</span>
                                       <Badge className={
-                                        task.priority === 'High' ? 'bg-red-100 text-red-700' : task.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'
+                                        task.priority === 'High' ? 'bg-red-100 text-red-700' : task.priority === 'Medium' ? 'bg-yellow-50 text-yellow-700' : 'bg-gray-100 text-gray-700'
                                       }>
                                         {task.priority === 'High' && '🔥 '}
                                         {task.priority === 'Medium' && '⚡ '}
@@ -920,7 +920,7 @@ export function AppSidebar() {
                                       />
                                       <span className="truncate flex-1 text-sm">{task.title}</span>
                                       <Badge className={
-                                        task.priority === 'High' ? 'bg-red-100 text-red-700' : task.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'
+                                        task.priority === 'High' ? 'bg-red-100 text-red-700' : task.priority === 'Medium' ? 'bg-yellow-50 text-yellow-700' : 'bg-gray-100 text-gray-700'
                                       }>
                                         {task.priority === 'High' && '🔥 '}
                                         {task.priority === 'Medium' && '⚡ '}

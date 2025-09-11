@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { Plus, MoreHorizontal, Calendar, Edit3, Trash2, X, GripVertical, MessageSquare } from 'lucide-react';
+import { Plus, MoreHorizontal, Calendar, Edit3, Trash2, X, GripVertical, MessageSquare, Flame, Gauge, Leaf, AlertTriangle, User, Circle, CircleUser } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -127,34 +127,65 @@ const columns: Column[] = [
   {
     id: 'In Progress', 
     title: 'IN PROGRESS',
-    color: 'border-l-blue-500',
-    bgColor: 'bg-blue-50'
+  color: 'border-l-blue-500',
+  bgColor: 'bg-blue-50'
   },
   {
     id: 'Done',
     title: 'DONE',
-    color: 'border-l-green-500',
-    bgColor: 'bg-green-50'
+  color: 'border-l-green-500',
+  bgColor: 'bg-green-50'
   }
 ];
 
-const priorityConfig: Record<Priority, { color: BadgeVariant; icon: string }> = {
-  'Critical': { color: 'destructive', icon: '🚨' },
-  'High': { color: 'destructive', icon: '🔥' },
-  'Medium': { color: 'secondary', icon: '⚡' },
-  'Low': { color: 'outline', icon: '📝' }
+const priorityConfig: Record<Priority, { color: BadgeVariant; icon: React.ReactNode; textClass?: string; bgClass?: string }> = {
+  'Critical': {
+    color: 'destructive',
+    icon: <AlertTriangle className="h-3 w-3 inline-block mr-1 text-current" aria-hidden />,
+  textClass: '!text-red-700 ',
+  bgClass: '!bg-red-100'
+  },
+
+  'High': {
+    color: 'destructive',
+    icon: <Flame className="h-3 w-3 inline-block mr-1 text-current" aria-hidden />,
+  textClass: '!text-red-700 text-xs font-semibold rounded-full flex items-center gap-1',
+  bgClass: '!bg-red-100'
+  },
+
+  'Medium': {
+    color: 'secondary',
+    icon: <Gauge className="h-3 w-3 inline-block mr-1 text-current" aria-hidden />,
+  textClass: '!text-yellow-700 text-xs font-semibold rounded-full flex items-center gap-1',
+  bgClass: '!bg-yellow-100'
+  },
+
+  'Low': {
+    color: 'outline',
+    icon: <Leaf className="h-3 w-3 inline-block mr-1 text-current" aria-hidden />,
+  textClass: '!text-gray-700 text-xs font-semibold rounded-full flex items-center gap-1',
+  bgClass: '!bg-gray-100'
+  }
 };
 
 const typeConfig: Record<ItemType, { label: string; color: string }> = {
-  'project': { label: 'PROJECT', color: 'bg-purple-100 text-purple-800' },
-  'task': { label: 'TASK', color: 'bg-blue-100 text-blue-800' }
+  'project': { label: 'PROJECT', color: 'bg-black text-white' },
+  // light: black text, dark: white text
+  'task': { label: 'TASK', color: 'bg-black text-white' }
 };
 
 const reviewStatusConfig = {
   pending: { label: 'Pending Review', color: 'bg-blue-100 text-blue-800' },
   approved: { label: 'Approved', color: 'bg-green-100 text-green-800' },
   changes_requested: { label: 'Changes Requested', color: 'bg-red-100 text-red-800' },
-  on_hold: { label: 'On Hold', color: 'bg-yellow-100 text-yellow-800' }
+  on_hold: { label: 'On Hold', color: 'bg-orange-100 text-orange-800' }
+};
+
+// Map item status to badge classes (allow extra statuses like 'Completed')
+const statusConfig: Record<string, string> = {
+  'Todo': 'bg-gray-100 text-gray-700',
+  'In Progress': 'bg-blue-100 text-blue-700',
+  'Done': 'bg-green-100 text-green-700',
 };
 
 export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanbanBoardProps = {}) {
@@ -582,7 +613,7 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
                     />
                   )}
                   
-                  {getTasksByStatus(column.id).map((item) => (
+              {getTasksByStatus(column.id).map((item) => (
                     <TaskCard 
                       key={item.id} 
                       item={item}
@@ -596,7 +627,7 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
                     />
                   ))}
                   
-                  {getTasksByStatus(column.id).length === 0 && showNewItemForm !== column.id && (
+              {getTasksByStatus(column.id).length === 0 && showNewItemForm !== column.id && (
                     <div className="flex flex-col items-center justify-center py-8 sm:py-12 text-muted-foreground">
                       <p className="text-sm mb-2">No items yet</p>
                       <Button 
@@ -647,9 +678,9 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
     const currentStatus = item.status;
     const options = [];
     
-    if (currentStatus !== 'Todo') options.push({ value: 'Todo', label: '📋 Todo', icon: '←' });
-    if (currentStatus !== 'In Progress') options.push({ value: 'In Progress', label: '⚡ In Progress', icon: '↔' });
-    if (currentStatus !== 'Done') options.push({ value: 'Done', label: '✅ Done', icon: '→' });
+    if (currentStatus !== 'Todo') options.push({ value: 'Todo', label: ' Todo', icon: '←' });
+    if (currentStatus !== 'In Progress') options.push({ value: 'In Progress', label: ' In Progress', icon: '↔' });
+    if (currentStatus !== 'Done') options.push({ value: 'Done', label: ' Done', icon: '→' });
     
     return options;
   };
@@ -682,7 +713,7 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
           <Badge className={`text-xs font-bold ${item.type ? typeConfig[item.type].color : 'bg-gray-100 text-gray-700'} flex-shrink-0`}>
             {item.type ? typeConfig[item.type].label : 'Task'}
           </Badge>
-          <Badge variant={priorityConfig[item.priority].color} className="text-xs flex-shrink-0">
+          <Badge variant={priorityConfig[item.priority].color} className={`text-xs flex-shrink-0 ${priorityConfig[item.priority].bgClass ?? ''} ${priorityConfig[item.priority].textClass ?? ''}`}>
             <span className="hidden sm:inline">{priorityConfig[item.priority].icon} {item.priority}</span>
             <span className="sm:hidden">{priorityConfig[item.priority].icon}</span>
           </Badge>
@@ -718,7 +749,8 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
             <Button 
               variant="ghost" 
               size="sm" 
-              className="h-5 w-5 sm:h-6 sm:w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+              // Always visible on mobile, hover-to-show on sm+ screens
+              className="h-5 w-5 sm:h-6 sm:w-6 p-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex-shrink-0"
             >
               <MoreHorizontal className="h-2 w-2 sm:h-3 sm:w-3" />
             </Button>
@@ -761,15 +793,15 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
       </h3>
       
       {/* Review Feedback Section - Show if task has been reviewed */}
-      {item.lastReviewNotes && item.reviewStatus && item.reviewStatus !== 'pending' && (
+          {item.lastReviewNotes && item.reviewStatus && item.reviewStatus !== 'pending' && (
         <div className={`mb-3 p-2 border rounded ${
           item.reviewStatus === 'changes_requested' ? 'bg-red-50 border-red-200' :
-          item.reviewStatus === 'on_hold' ? 'bg-yellow-50 border-yellow-200' :
+          item.reviewStatus === 'on_hold' ? 'bg-orange-50 border-orange-200' :
           'bg-green-50 border-green-200'
         }`}>
           <p className={`text-xs font-medium mb-1 ${
             item.reviewStatus === 'changes_requested' ? 'text-red-700' :
-            item.reviewStatus === 'on_hold' ? 'text-yellow-700' :
+            item.reviewStatus === 'on_hold' ? 'text-orange-700' :
             'text-green-700'
           }`}>
             {item.reviewStatus === 'changes_requested' ? '📝 Review Feedback:' :
@@ -778,7 +810,7 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
           </p>
           <p className={`text-xs line-clamp-2 ${
             item.reviewStatus === 'changes_requested' ? 'text-red-600' :
-            item.reviewStatus === 'on_hold' ? 'text-yellow-600' :
+            item.reviewStatus === 'on_hold' ? 'text-orange-600' :
             'text-green-600'
           }`}>
             {item.lastReviewNotes}
@@ -821,7 +853,7 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
                 <Badge className={`${item.type ? typeConfig[item.type].color : 'bg-gray-100 text-gray-700'} text-xs`}>
                   {item.type ? typeConfig[item.type].label : 'Task'}
                 </Badge>
-                <Badge variant={priorityConfig[item.priority].color} className="text-xs">
+                <Badge variant={priorityConfig[item.priority].color} className={`text-xs ${priorityConfig[item.priority].bgClass ?? ''} ${priorityConfig[item.priority].textClass ?? ''}`}>
                   {priorityConfig[item.priority].icon} {item.priority}
                 </Badge>
                 {item.reviewStatus && item.reviewStatus !== 'pending' && (
@@ -842,12 +874,12 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
                 {item.lastReviewNotes && item.reviewStatus && item.reviewStatus !== 'pending' && (
                   <div className={`p-4 border rounded-lg ${
                     item.reviewStatus === 'changes_requested' ? 'bg-red-50 border-red-200' :
-                    item.reviewStatus === 'on_hold' ? 'bg-yellow-50 border-yellow-200' :
+                    item.reviewStatus === 'on_hold' ? 'bg-orange-50 border-orange-200' :
                     'bg-green-50 border-green-200'
                   }`}>
                     <h4 className={`text-sm font-semibold mb-2 flex items-center gap-2 ${
                       item.reviewStatus === 'changes_requested' ? 'text-red-900' :
-                      item.reviewStatus === 'on_hold' ? 'text-yellow-900' :
+                      item.reviewStatus === 'on_hold' ? 'text-orange-900' :
                       'text-green-900'
                     }`}>
                       {item.reviewStatus === 'changes_requested' ? '⚠️ Review Feedback' :
@@ -856,7 +888,7 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
                     </h4>
                     <div className={`bg-white rounded p-3 border ${
                       item.reviewStatus === 'changes_requested' ? 'border-red-200' :
-                      item.reviewStatus === 'on_hold' ? 'border-yellow-200' :
+                      item.reviewStatus === 'on_hold' ? 'border-orange-200' :
                       'border-green-200'
                     }`}>
                       <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap break-words">
@@ -876,7 +908,7 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
                 
                 <div>
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center gap-2">
-                    📄 Description
+                    Description
                   </h4>
                   <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border">
                     <div 
@@ -912,9 +944,15 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
                     <h5 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
                       Current Status
                     </h5>
-                    <Badge variant="secondary" className="text-sm">
-                      {item.status}
-                    </Badge>
+                    {/* Use safe lookup with fallback for unknown statuses */}
+                    {(() => {
+                      const statusClasses = statusConfig[item.status] ?? 'bg-gray-100 text-gray-700';
+                      return (
+                        <Badge className={`text-sm ${statusClasses}`}>
+                          {item.status}
+                        </Badge>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -955,11 +993,9 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
         </div>
 
         {item.assignee ? (
-          <div className="flex items-center space-x-2 flex-shrink-0">
-            <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-medium flex-shrink-0">
-              👤
-            </div>
-            <span className="text-base truncate max-w-[60px] sm:max-w-[80px]">{item.assignee.split(' ')[0]}</span>
+          <div className="flex items-center">
+              <User className="h-4 w-4" aria-hidden />
+            <span className="text-s truncate max-w-[60px] sm:max-w-[80px]">{`@${item.assignee.split(' ')[0]}`}</span>
           </div>
         ) : null}
       </div>
@@ -1121,7 +1157,7 @@ const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
                 <Badge className={`text-xs font-bold ${editedItem.type ? typeConfig[editedItem.type].color : 'bg-gray-100 text-gray-700'}`}>
                   {editedItem.type ? typeConfig[editedItem.type].label : 'Task'}
                 </Badge>
-                <Badge variant={priorityConfig[editedItem.priority].color} className="text-xs">
+                <Badge variant={priorityConfig[editedItem.priority].color} className={`text-xs ${priorityConfig[editedItem.priority].bgClass ?? ''} ${priorityConfig[editedItem.priority].textClass ?? ''}`}>
                   {priorityConfig[editedItem.priority].icon} {editedItem.priority}
                 </Badge>
                 {editedItem.reviewStatus && editedItem.reviewStatus !== 'pending' && (
@@ -1143,14 +1179,14 @@ const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
           <CardContent className="space-y-3 sm:space-y-6 p-6">
             {/* Review Information Section */}
             {editedItem.lastReviewNotes && editedItem.reviewStatus && editedItem.reviewStatus !== 'pending' && (
-              <div className={`p-3 border rounded-lg ${
+                  <div className={`p-3 border rounded-lg ${
                 editedItem.reviewStatus === 'changes_requested' ? 'bg-red-50 border-red-200' :
-                editedItem.reviewStatus === 'on_hold' ? 'bg-yellow-50 border-yellow-200' :
+                editedItem.reviewStatus === 'on_hold' ? 'bg-orange-50 border-orange-200' :
                 'bg-green-50 border-green-200'
               }`}>
                 <h4 className={`text-sm font-semibold mb-2 ${
                   editedItem.reviewStatus === 'changes_requested' ? 'text-red-900' :
-                  editedItem.reviewStatus === 'on_hold' ? 'text-yellow-900' :
+                  editedItem.reviewStatus === 'on_hold' ? 'text-orange-900' :
                   'text-green-900'
                 }`}>
                   {editedItem.reviewStatus === 'changes_requested' ? '⚠️ Review Feedback:' :
@@ -1159,7 +1195,7 @@ const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
                 </h4>
                 <p className={`text-sm ${
                   editedItem.reviewStatus === 'changes_requested' ? 'text-red-700' :
-                  editedItem.reviewStatus === 'on_hold' ? 'text-yellow-700' :
+                  editedItem.reviewStatus === 'on_hold' ? 'text-orange-700' :
                   'text-green-700'
                 }`}>
                   {editedItem.lastReviewNotes}
@@ -1248,7 +1284,7 @@ const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
               </div>
               
               <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-600">👤 Assignee</label>
+                <label className="text-xs font-medium text-gray-600"> Assignee</label>
                 <Input
                   value={editedItem.assignee || ''}
                   onChange={(e) => setEditedItem({...editedItem, assignee: e.target.value})}

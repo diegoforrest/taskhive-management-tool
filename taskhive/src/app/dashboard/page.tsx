@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronDown, List, Plus, Clock, AlertCircle, PlayCircle, CheckCircle, Calendar, Funnel, XCircle, Pause } from "lucide-react";
+import { ChevronDown, List, Plus, Clock, AlertCircle, PlayCircle, CheckCircle, Calendar, Funnel, XCircle, Pause, Flame, Gauge, Leaf, ClockAlert, Rocket, User } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -148,11 +148,32 @@ export default function DashboardHome() {
     loadData();
   }, [loadData]);
 
-  const handleDetailsToggle = useCallback((projectId: number, e: any) => {
+  // If URL contains ?projectId=, scroll to and highlight that project card
+  useEffect(() => {
     try {
-      const el = e.currentTarget as HTMLDetailsElement;
-      setDetailsOpenMap(prev => ({ ...prev, [projectId]: !!el.open }));
-    } catch (err) {
+      const pid = searchParams?.get('projectId');
+      if (pid) {
+        // delay slightly to allow cards to render
+        setTimeout(() => {
+          const el = document.getElementById(`project-${pid}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+            setTimeout(() => el.classList.remove('ring-2', 'ring-primary', 'ring-offset-2'), 3000);
+          }
+        }, 200);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [searchParams, projects]);
+
+  const handleDetailsToggle = useCallback((projectId: number, e: unknown) => {
+    try {
+      const ev = e as { currentTarget?: EventTarget | null } | undefined;
+      const el = ev?.currentTarget as unknown as HTMLDetailsElement | undefined;
+      setDetailsOpenMap(prev => ({ ...prev, [projectId]: !!(el && el.open) }));
+    } catch (_err) {
       // ignore
     }
   }, []);
@@ -170,11 +191,11 @@ export default function DashboardHome() {
         await Promise.all(allTasks.map(async (task) => {
           try {
             const res = await tasksApi.getChangelogs(task.id);
-            const data = (res && typeof res === 'object' && 'data' in (res as any)) ? (res as any).data : (Array.isArray(res) ? res : []);
-            const rows = Array.isArray(data) ? data : [];
+            const dataRaw = (res && typeof res === 'object' && 'data' in (res as Record<string, unknown>)) ? (res as Record<string, unknown>).data as unknown : (Array.isArray(res) ? res : []);
+            const rows = Array.isArray(dataRaw) ? dataRaw as unknown[] : [];
             if (rows.length > 0) {
-              const latest = rows.slice().sort((a: any, b: any) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime())[0];
-              entries[task.id] = { new_status: latest.new_status, remark: latest.remark, createdAt: latest.createdAt };
+              const latest = rows.slice().sort((a, b) => new Date((b as Record<string, unknown>).createdAt as string || '').getTime() - new Date((a as Record<string, unknown>).createdAt as string || '').getTime())[0] as Record<string, unknown>;
+              entries[task.id] = { new_status: latest.new_status as string | undefined, remark: latest.remark as string | undefined, createdAt: latest.createdAt as string | undefined };
             } else {
               entries[task.id] = null;
             }
@@ -319,7 +340,7 @@ export default function DashboardHome() {
     const { total } = getTaskStats(projectId);
     if (total === 0) return "No Tasks";
     const progress = getProjectProgress(projectId);
-    if (progress === 100) return "Ready for Review";
+    if (progress === 100) return "To Review";
     return "In Progress"; // Changed from "Not Started" to "In Progress" as default
   };
 
@@ -340,7 +361,7 @@ export default function DashboardHome() {
     // Helper: safely read project.priority (may be missing from API)
     const getProjectPriorityValue = (project: Project) => {
       const p = (project as unknown as { priority?: unknown }).priority;
-      if (p === 'High' || p === 'Medium' || p === 'Low' || p === 'Critical') return p as Priority;
+      if (p === 'High' || p === 'Medium' || p === 'Low') return p as Priority;
       return getProjectPriority(project.id);
     };
 
@@ -450,11 +471,11 @@ export default function DashboardHome() {
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation Bar */}
-      <nav className="w-full border-b bg-white dark:bg-gray-900 px-4 py-3 flex items-center justify-between sticky top-14 z-40">
+  <nav className="w-full border-b bg-white dark:bg-gray-900 px-4 py-3 flex items-center justify-between sticky top-14 z-40">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => setActiveTab("all")}
+              onClick={() => changeTab("all")}
               className={`text-lg font-bold transition-colors ${
                 activeTab === "all" 
                   ? "text-primary" 
@@ -464,7 +485,7 @@ export default function DashboardHome() {
               Projects ({projects.filter(p => getProjectProgress(p.id) < 100 && p.status !== "Completed").length})
             </button>
             <button
-              onClick={() => setActiveTab("review")}
+              onClick={() => changeTab("review")}
               className={`text-lg font-bold transition-colors ${
                 activeTab === "review" 
                   ? "text-primary" 
@@ -474,7 +495,7 @@ export default function DashboardHome() {
               Review ({projects.filter(p => getProjectProgress(p.id) === 100 && p.status !== "Completed").length})
             </button>
             <button
-              onClick={() => setActiveTab("completed")}
+              onClick={() => changeTab("completed")}
               className={`text-lg font-bold transition-colors ${
                 activeTab === "completed" 
                   ? "text-primary" 
@@ -544,7 +565,7 @@ export default function DashboardHome() {
         {sortedProjects.length > 0 ? (
           <div className="grid grid-cols-3 gap-6 items-start">
             {sortedProjects.map((project) => (
-              <div key={project.id} className="bg-white dark:bg-gray-900 rounded-lg shadow p-5 flex flex-col gap-2 border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-primary/20 transition-all duration-200">
+              <div id={`project-${project.id}`} key={project.id} className="project-card bg-white dark:bg-gray-900 rounded-lg shadow p-5 flex flex-col gap-2 border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-primary/20 transition-all duration-200">
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
                     {project.due_date ? (
@@ -555,26 +576,26 @@ export default function DashboardHome() {
                     ) : (
                       <span className="text-xs text-muted-foreground">No due date</span>
                     )}
-                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                    <span className={`text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 ${
                       project.priority === 'High' ? 'bg-red-100 text-red-700' : 
                       project.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 
                       'bg-gray-100 text-gray-700'
                     }`}>
-                      {project.priority === 'High' && '🔥 '}
-                      {project.priority === 'Medium' && '⚡ '}
-                      {project.priority === 'Low' && '🌱 '}
+                      {project.priority === 'High' && <Flame className="inline h-3 w-3" aria-hidden />}
+                      {project.priority === 'Medium' && <Gauge className="inline h-3 w-3" aria-hidden />}
+                      {project.priority === 'Low' && <Leaf className="inline h-3 w-3" aria-hidden />}
                       {project.priority}
                     </span>
                     <span className={`text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 ${
                       project.status === "Completed" ? 'bg-green-100 text-green-700' :
-                      getProjectStatus(project.id) === "Ready for Review" ? 'bg-yellow-100 text-yellow-700' :
+                      getProjectStatus(project.id) === "To Review" ? 'bg-purple-100 text-purple-700' :
                       getProjectStatus(project.id) === "In Progress" ? 'bg-blue-100 text-blue-700' :
                       'bg-gray-100 text-gray-700'
                     }`}>
                       {project.status === "Completed" ? <CheckCircle className="h-3 w-3" /> :
-                       getProjectStatus(project.id) === "Ready for Review" ? <AlertCircle className="h-3 w-3" /> :
-                       getProjectStatus(project.id) === "In Progress" ? <PlayCircle className="h-3 w-3" /> :
-                       <Clock className="h-3 w-3" />}
+                       getProjectStatus(project.id) === "To Review" ? <PlayCircle className="h-3 w-3" /> :
+                       getProjectStatus(project.id) === "In Progress" ? <Rocket className="h-3 w-3" /> :
+                       <ClockAlert className="h-3 w-3" />}
                       {project.status === "Completed" ? "Completed" : getProjectStatus(project.id)}
                     </span>
                   </div>
@@ -628,26 +649,26 @@ export default function DashboardHome() {
                             ></div>
                             {/* In Progress (Blue) - always middle */}
                             <div 
-                              className="bg-blue-500 transition-all duration-500 ease-out"
+                              className="bg-blue-400 transition-all duration-500 ease-out"
                               style={{ width: `${getProgressSegments(project.id).inProgressPercent}%` }}
                             ></div>
                             {/* Completed (Green) - always right */}
                             <div 
-                              className="bg-green-500 transition-all duration-500 ease-out"
+                              className="bg-green-400 transition-all duration-500 ease-out"
                               style={{ width: `${getProgressSegments(project.id).completedPercent}%` }}
                             ></div>
                           </div>
                         </div>
                         {/* Progress percentage overlay */}
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="text-xs font-medium text-white drop-shadow-sm">
+                          <span className="text-xs font-medium text-black drop-shadow-sm">
                             {getProjectProgress(project.id)}%
                           </span>
                         </div>
                       </div>
                     ) : (
                       <div className="w-full bg-gray-200 rounded-full h-3 flex items-center justify-center">
-                        <span className="text-xs text-gray-500">No tasks</span>
+                        <span className="text-xs text-gray-700">No tasks</span>
                       </div>
                     )}
 
@@ -659,11 +680,11 @@ export default function DashboardHome() {
                           <span className="font-medium text-gray-600">{getTaskStats(project.id).todo} Todo</span>
                         </div>
                                                 <div className="flex items-center gap-1">
-                          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                          <div className="w-2 h-2 rounded-full bg-blue-400"></div>
                           <span className="font-medium text-blue-700">{getTaskStats(project.id).inProgress} In Progress</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                          <div className="w-2 h-2 rounded-full bg-green-400"></div>
                           <span className="font-medium text-green-700">{getTaskStats(project.id).completed} Done</span>
                         </div>
 
@@ -686,32 +707,34 @@ export default function DashboardHome() {
                         <li key={task.id} className="flex items-center justify-between text-xs p-2 bg-gray-50 dark:bg-gray-800 rounded">
                           <div className="flex items-center gap-2">
                             <span className={`w-2 h-2 rounded-full ${
-                              task.status === 'Done' ? 'bg-green-500' : 
-                              task.status === 'In Progress' ? 'bg-blue-500' : 
+                              task.status === 'Done' ? 'bg-green-400' : 
+                              task.status === 'In Progress' ? 'bg-blue-400' : 
                               'bg-gray-400'
                             }`}></span>
-                            <span className={`truncate ${task.status === 'Done' ? 'line-through text-muted-foreground' : ''}`}>
+                            <span className={`truncate ${task.status === 'Done' ? 'text-muted-foreground' : ''}`}>
                               {task.name}
                             </span>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <span className={`text-xs px-1 py-0.5 rounded text-white font-medium ${
-                              task.priority === 'High' ? 'bg-red-500' : 
-                              task.priority === 'Medium' ? 'bg-yellow-500' : 
-                              task.priority === 'Critical' ? 'bg-purple-500' :
-                              'bg-gray-500'
+                              task.priority === 'High' ? 'bg-red-100' : 
+                              task.priority === 'Medium' ? 'bg-yellow-100' :
+                              'bg-gray-200'
                             }`}>
-                              {task.priority === 'High' && '🔥'}
-                              {task.priority === 'Medium' && '⚡'}
-                              {task.priority === 'Low' && '📝'}
-                              {task.priority === 'Critical' && '🚨'}
+                            {task.priority === 'High' && <Flame className="inline h-3 w-3 text-red-700" aria-hidden />}
+                            {task.priority === 'Medium' && <Gauge className="inline h-3 w-3 text-yellow-700" aria-hidden />}
+                            {task.priority === 'Low' && <Leaf className="inline h-3 w-3 text-gray-700" aria-hidden />}
                             </span>
                             {task.assignee && (
-                              <span className="text-muted-foreground">@{task.assignee}</span>
+                              <span className="flex items-center text-muted-foreground">
+                                <User className="h-3 w-3" aria-hidden />
+                                <span className="truncate gap-1"> {task.assignee}</span>
+                              </span>
                             )}
                             {task.due_date && (
-                              <span className="text-muted-foreground">
-                                {new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              <span className="flex items-center gap-1 text-muted-foreground">
+                                <Calendar className="h-3 w-3" aria-hidden />
+                                <span>{new Date(task.due_date).toLocaleDateString('en-US',{ month:'short', day: 'numeric' })}</span>
                               </span>
                             )}
                             {/* Review status icon */}
@@ -727,44 +750,29 @@ export default function DashboardHome() {
                                         <span
                                           role="img"
                                           aria-label={info.remark ? `Changes requested: ${info.remark}` : 'Changes are requested'}
-                                          className="text-red-600 cursor-pointer"
+                                          className="text-red-700 cursor-pointer"
                                         >
                                           <XCircle className="h-4 w-4 hover:scale-105 transition-transform" />
                                         </span>
                                       </TooltipTrigger>
                                       <TooltipContent side="top">
-                                        <div className="text-xs">Changes are requested, Check it on the review section.</div>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  );
-                                }
-                                // Pending (waiting) state
-                                if (ns.includes('pending') || ns.includes('wait')) {
-                                  return (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <span className="text-gray-600 cursor-pointer">
-                                          <Clock className="h-4 w-4 hover:scale-105 transition-transform" />
-                                        </span>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="top">
-                                        <div className="text-xs">Pending for review</div>
+                                        <div className="text-xs">Changes are requested, Check on the review section.</div>
                                       </TooltipContent>
                                     </Tooltip>
                                   );
                                 }
 
-                                // On hold
+                                // On hold -> Orange
                                 if (ns.includes('hold')) {
                                   return (
                                     <Tooltip>
                                       <TooltipTrigger asChild>
-                                        <span className="text-yellow-600 cursor-pointer">
+                                        <span className="text-orange-400 cursor-pointer">
                                           <Pause className="h-4 w-4 hover:scale-105 transition-transform" />
                                         </span>
                                       </TooltipTrigger>
                                       <TooltipContent side="top">
-                                        <div className="text-xs">Task is on hold</div>
+                                        <div className="text-xs">Task on hold</div>
                                       </TooltipContent>
                                     </Tooltip>
                                   );
@@ -775,7 +783,7 @@ export default function DashboardHome() {
                                   return (
                                     <Tooltip>
                                       <TooltipTrigger asChild>
-                                        <span className="text-green-600 cursor-pointer">
+                                        <span className="text-green-700 cursor-pointer">
                                           <CheckCircle className="h-4 w-4 hover:scale-105 transition-transform" />
                                         </span>
                                       </TooltipTrigger>
@@ -817,56 +825,6 @@ export default function DashboardHome() {
           </div>
         )}
       </main>
-
-      {/* Dialogs */}
-      <Dialog open={completionDialog.open} onOpenChange={(open) => setCompletionDialog({ ...completionDialog, open })}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Complete Project</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to mark this project as completed? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCompletionDialog({ open: false, projectId: null })}>
-              Cancel
-            </Button>
-            <Button onClick={handleCompleteProject}>
-              Complete Project
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={noteDialog.open} onOpenChange={(open) => setNoteDialog({ ...noteDialog, open })}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Note</DialogTitle>
-            <DialogDescription>
-              Add a note or comment for this project review.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <textarea
-              className="w-full min-h-[100px] p-3 border border-gray-200 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter your note here..."
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setNote("");
-              setNoteDialog({ open: false, projectId: null });
-            }}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddNote} disabled={!note.trim()}>
-              Add Note
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

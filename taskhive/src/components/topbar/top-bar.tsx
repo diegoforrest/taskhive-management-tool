@@ -106,10 +106,31 @@ export function TopBar() {
   // Handle keyboard shortcuts
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isAuthenticated && (e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault()
-        setSearchOpen(true)
+      // Cmd/Ctrl+K: open search (existing behavior)
+      if (isAuthenticated && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen(true);
+        return;
       }
+
+      // Single-key 'k' shortcut: open search when not typing in an input
+      // Ignore when any modifier is held or when focus is inside editable elements
+      if (
+        isAuthenticated &&
+        !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey &&
+        e.key.toLowerCase() === 'k'
+      ) {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName?.toUpperCase();
+        const isEditable = !!target && (target.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT');
+        if (!isEditable) {
+          e.preventDefault();
+          setSearchOpen(true);
+          return;
+        }
+      }
+
+      // Escape: close search
       if (e.key === 'Escape') {
         setSearchOpen(false)
       }
@@ -130,26 +151,27 @@ export function TopBar() {
     try {
       // Fetch projects for current user from real API
       const projectsRaw = await authApi.getProjects(typeof user.user_id === 'number' ? user.user_id : parseInt(user.user_id));
-      const projects = (projectsRaw && typeof projectsRaw === 'object' && 'data' in (projectsRaw as any)) ? (projectsRaw as any).data || [] : (Array.isArray(projectsRaw) ? projectsRaw : []);
+  const projects = (projectsRaw && typeof projectsRaw === 'object' && 'data' in (projectsRaw as Record<string, unknown>)) ? (projectsRaw as Record<string, unknown>).data as unknown[] || [] : (Array.isArray(projectsRaw) ? projectsRaw : []);
 
       const q = query.toLowerCase();
 
       // Only match project name or due date (ISO or formatted)
-      const augmented = (projects || []).map((p: any) => {
+      const augmented = ((projects || []) as unknown[]).map((v) => {
+        const p = v as Record<string, unknown>;
         // Normalize/choose a human-friendly name. Backend may use different fields
         // or accidentally return a numeric name — coerce to string when needed.
         const rawName = p.name ?? p.project_name ?? p.title ?? (p.id ? String(p.id) : undefined);
-        const name = typeof rawName === 'number' ? String(rawName) : rawName;
-        const displayName = (name && String(name).trim()) ? String(name) : `Project ${p.id}`;
+        const name = typeof rawName === 'number' ? String(rawName) : rawName as string | undefined;
+        const displayName = (name && String(name).trim()) ? String(name) : `Project ${(p.id as number)}`;
 
         return {
-          id: p.id,
+          id: p.id as number,
           name: displayName,
-          description: p.description ?? p.contents ?? p.description,
-          status: p.status,
-          priority: p.priority,
-          due_date: p.due_date ?? p.dueDate,
-          createdAt: p.createdAt,
+          description: (p.description ?? p.contents ?? p.description) as string | undefined,
+          status: p.status as string | undefined,
+          priority: p.priority as string | undefined,
+          due_date: (p.due_date ?? p.dueDate) as string | undefined,
+          createdAt: p.createdAt as string | undefined,
         } as ProjectLike;
       });
 
@@ -185,8 +207,26 @@ export function TopBar() {
     setSearchQuery("")
     setSearchResults([])
 
-    // Navigate directly to the project page
-    router.push(`/dashboard/projects/${project.id}`)
+    // Determine which dashboard tab the project should appear under
+    const determineTab = (p: ProjectLike) => {
+      const s = (p.status || '').toString().toLowerCase();
+      if (s.includes('completed')) return 'completed';
+      // backend may use 'To Review', 'Ready for Review', 'Review'
+      if (s.includes('review') || s.includes('to review') || s.includes('ready')) return 'review';
+      return 'all';
+    }
+
+    const tab = determineTab(project);
+
+    // Navigate to dashboard with both projectId and tab so the dashboard can open the correct tab and highlight
+    try {
+      const params = new URLSearchParams();
+      params.set('projectId', String(project.id));
+      params.set('tab', tab);
+      router.push(`/dashboard?${params.toString()}`);
+    } catch (e) {
+      router.push('/dashboard');
+    }
   }
 
   // Handle search input click
@@ -354,13 +394,13 @@ export function TopBar() {
                         <span>• Due dates</span>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <button aria-label="Due date search help" className="inline-flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:bg-muted/50 focus:outline-none">
+                            <button aria-label="Due date search help" className="inline-flex items-center justify-center h-3 w-3 rounded text-muted-foreground hover:bg-muted/50 focus:outline-none">
                               <HelpCircle className="h-4 w-4" />
                             </button>
                           </TooltipTrigger>
                           <TooltipContent side="top">
                             <div className="max-w-xs text-left">
-                              Search by full date (e.g. "Sep 11 2025") or ISO ("2025-09-11"). Partial matches like "Sep 2025" also work.
+                              Search by full date (e.g. Sep 11 2025) or ISO (2025-09-11). Partial matches like Sep 2025 also work.
                             </div>
                           </TooltipContent>
                         </Tooltip>
@@ -371,7 +411,7 @@ export function TopBar() {
             ) : searchResults.length === 0 && !isSearching ? (
               <div className="px-4 sm:px-6 py-6 sm:py-8 text-center text-sm text-muted-foreground">
                 <Search className="mx-auto h-6 w-6 sm:h-8 sm:w-8 mb-2 opacity-50" />
-                <p>No results found for &quot;{searchQuery}&quot;</p>
+                <p>No results found for <span className="font-mono">{searchQuery}</span></p>
                 <p className="text-xs mt-1">Try different keywords or check spelling</p>
               </div>
             ) : (
@@ -399,7 +439,7 @@ export function TopBar() {
                           <p className="text-xs text-muted-foreground truncate mb-1">{project.description}</p>
                         )}
                         <div className="flex items-center flex-wrap gap-2 sm:gap-3 text-xs text-muted-foreground">
-                          <span className="capitalize">{project.status}</span>
+                          <span className={`capitalize ${project.status && project.status.toLowerCase().includes('completed') ? 'text-green-700' : project.status && project.status.toLowerCase().includes('review') ? 'text-purple-700' : 'text-blue-700'}`}>{project.status}</span>
                           {/* assignees removed from search results - search now matches only project name and due date */}
                           {project.due_date && (
                             <span className="flex items-center flex-shrink-0">
@@ -417,14 +457,7 @@ export function TopBar() {
           </div>
           
           <div className="px-4 sm:px-6 py-3 border-t bg-muted/50">
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <div className="flex items-center space-x-2 sm:space-x-4">
-                <kbd className="inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium">
-                  <span>↵</span>
-                </kbd>
-                <span className="hidden sm:inline">to select</span>
-                <span className="sm:hidden">select</span>
-              </div>
+            <div className="flex items-center justify-end text-xs text-muted-foreground">
               <div className="flex items-center space-x-2 sm:space-x-4">
                 <kbd className="inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium">
                   ESC

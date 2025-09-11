@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Calendar, Settings, CheckCircle, AlertCircle, PlayCircle, Clock } from "lucide-react";
+import { ArrowLeft, Calendar, Settings, CheckCircle, AlertCircle, PlayCircle, Clock, Flame, Gauge, Leaf, Rocket } from "lucide-react";
 import EnhancedKanbanBoard from "@/components/task/enhanced-kanban-board";
 import { authApi, Project } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -28,17 +28,17 @@ export default function ProjectPage() {
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
+  (async () => {
       setLoading(true);
       try {
         // Pass user id to API; fallback to 1 if unknown
-        const userId = Number(user?.user_id ?? 1);
-        const res = await authApi.getProject(Number(projectId), userId);
-        let data: any = null;
-        if (res && typeof res === 'object' && 'data' in res) data = (res as any).data;
-        else if (res && typeof res === 'object' && (res as any).success && (res as any).data) data = (res as any).data;
-        else data = res;
-        if (mounted) setProject(data || null);
+    const userId = Number(user?.user_id ?? 1);
+    const res = await authApi.getProject(Number(projectId), userId);
+    let data: unknown = null;
+    if (res && typeof res === 'object' && 'data' in res) data = (res as Record<string, unknown>).data;
+    else if (res && typeof res === 'object' && (res as Record<string, unknown>).hasOwnProperty('success') && (res as Record<string, unknown>).hasOwnProperty('data')) data = (res as Record<string, unknown>).data;
+    else data = res;
+  if (mounted) setProject((data as Project) || null);
       } catch (e) {
         console.warn('Failed to fetch project', e);
         if (mounted) setProject(null);
@@ -46,8 +46,8 @@ export default function ProjectPage() {
         if (mounted) setLoading(false);
       }
     })();
-    return () => { mounted = false; };
-  }, [projectId]);
+  return () => { mounted = false; };
+  }, [projectId, user?.user_id]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -71,29 +71,25 @@ export default function ProjectPage() {
                 <span className="font-medium">{project ? formatProjectDue(project.due_date) : (loading ? 'Loading...' : 'No due date')}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                <span className={`text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 ${
                   project?.priority === 'High' ? 'bg-red-100 text-red-700' : 
-                  project?.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 
+                   project?.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 
                   'bg-gray-100 text-gray-700'
                 }`}>
-                  {project?.priority === 'High' && '🔥 '}
-                  {project?.priority === 'Medium' && '⚡ '}
-                  {project?.priority === 'Low' && '🌱 '}
-                  <span className="hidden sm:inline">Priority: </span>
+                  {project?.priority === 'High' && <Flame className="inline h-3 w-3" aria-hidden />}
+                  {project?.priority === 'Medium' && <Gauge className="inline h-3 w-3" aria-hidden />}
+                  {project?.priority === 'Low' && <Leaf className="inline h-3 w-3" aria-hidden />}
                   {project?.priority ?? 'Unknown'}
                 </span>
                 <span className={`text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 ${
                   project?.status === 'Completed' ? 'bg-green-100 text-green-700' :
-                  project?.status === 'Ready for Review' ? 'bg-yellow-100 text-yellow-700' :
-                  project?.status === 'In Progress' ? 'bg-blue-100 text-blue-700' :
+                   project?.status === 'In Progress' ? 'bg-blue-100 text-blue-700' : 
                   'bg-gray-100 text-gray-700'
                 }`}>
                   {project?.status === 'Completed' ? <CheckCircle className="h-3 w-3" /> :
-                   project?.status === 'Ready for Review' ? <AlertCircle className="h-3 w-3" /> :
-                   project?.status === 'In Progress' ? <PlayCircle className="h-3 w-3" /> :
+                   project?.status === 'In Progress' ? <Rocket className="h-3 w-3" /> :
                    <Clock className="h-3 w-3" />}
-                  <span className="hidden sm:inline">Status: </span>
-                  {project?.status ?? 'Unknown'}
+                   {project?.status ?? 'Unknown'}
                 </span>
               </div>
             </div>
