@@ -508,7 +508,7 @@ export default function DashboardHome() {
         </div>
         <div className="flex items-center gap-4">
           <DropdownMenu>
-            <DropdownMenuTrigger>
+            <DropdownMenuTrigger asChild>
               {/* use ghost variant to remove visible border and slightly larger icon */}
               <Button variant="ghost" size="icon" className="p-0" aria-label="Filters">
                 <Funnel className="h-5 w-5" />
