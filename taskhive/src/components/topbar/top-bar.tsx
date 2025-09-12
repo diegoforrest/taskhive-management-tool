@@ -1,4 +1,7 @@
+
 "use client";
+
+
 
 import * as React from "react"
 import { useTheme } from "next-themes"
@@ -23,18 +26,17 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { useAuth } from "@/lib/auth-context"
 import { useSearch } from "@/lib/search-context"
 import { tasksApi, authApi } from "@/lib/api"
-
-// Lightweight UI-facing project shape used for search results
-type ProjectLike = {
-  id: number;
-  name?: string;
-  description?: string;
-  status?: string;
-  priority?: string;
-  due_date?: string | undefined;
-  user_id?: number;
-  createdAt?: string;
-}
+  // Lightweight UI-facing project shape used for search results
+  type ProjectLike = {
+    id: number;
+    name?: string;
+    description?: string;
+    status?: string;
+    priority?: string;
+    due_date?: string | undefined;
+    user_id?: number;
+    createdAt?: string;
+  }
 
 export function TopBar() {
   // Hydration fix: only render theme toggle after mount
@@ -44,7 +46,6 @@ export function TopBar() {
   const { user, logout, isAuthenticated } = useAuth()
   const { setHighlightedTaskId } = useSearch()
   const router = useRouter()
-  const [open, setOpen] = React.useState(false)
   const [searchOpen, setSearchOpen] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [searchResults, setSearchResults] = React.useState<ProjectLike[]>([])
@@ -150,7 +151,7 @@ export function TopBar() {
     try {
       // Fetch projects for current user from real API
       const projectsRaw = await authApi.getProjects(typeof user.user_id === 'number' ? user.user_id : parseInt(user.user_id));
-      const projects = (projectsRaw && typeof projectsRaw === 'object' && 'data' in (projectsRaw as Record<string, unknown>)) ? (projectsRaw as Record<string, unknown>).data as unknown[] || [] : (Array.isArray(projectsRaw) ? projectsRaw : []);
+  const projects = (projectsRaw && typeof projectsRaw === 'object' && 'data' in (projectsRaw as Record<string, unknown>)) ? (projectsRaw as Record<string, unknown>).data as unknown[] || [] : (Array.isArray(projectsRaw) ? projectsRaw : []);
 
       const q = query.toLowerCase();
 
@@ -176,9 +177,9 @@ export function TopBar() {
 
       const filtered = augmented.filter((p: ProjectLike) => {
         const name = (p.name || '').toLowerCase();
-        const dueIso = (p.due_date || p.createdAt || '').toString();
-        const dueFormatted = dueIso ? new Date(dueIso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).replace(',', '').toLowerCase() : '';
-        const due = (dueIso + ' ' + dueFormatted).toLowerCase();
+  const dueIso = (p.due_date || p.createdAt || '').toString();
+  const dueFormatted = dueIso ? new Date(dueIso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).replace(',', '').toLowerCase() : '';
+  const due = (dueIso + ' ' + dueFormatted).toLowerCase();
         return name.includes(q) || due.includes(q);
       });
 
@@ -237,7 +238,6 @@ export function TopBar() {
     setSearchOpen(true)
   }
 
-  
   return (
     <>
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">

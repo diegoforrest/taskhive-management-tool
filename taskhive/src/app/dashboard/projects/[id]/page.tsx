@@ -63,7 +63,7 @@ export default function ProjectPage() {
                 <span className="sm:hidden">Back</span>
               </Link>
             </Button>
-            <h1 className="text-xl sm:text-2xl font-bold">Task Board</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">Task Hive</h1>
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm">
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-muted-foreground" />

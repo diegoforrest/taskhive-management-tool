@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Calendar, CheckCircle, Flame, Gauge, Leaf, User, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Calendar, Gauge, CheckCircle, Flame, Leaf, CircleCheckBig, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -32,6 +32,32 @@ export default function CompletedPage() {
 	const [loading, setLoading] = useState(true);
 
 	const projectId = projectIdParam ? Number(projectIdParam) : NaN;
+
+	// Derive owner display name from project or user object
+	const getOwnerFullName = () => {
+		// Prefer explicit owner fields on project
+		if (project) {
+			const p = project as any;
+			if (p.ownerName && typeof p.ownerName === 'string' && p.ownerName.trim()) return p.ownerName;
+			if (p.owner && typeof p.owner === 'string' && p.owner.trim()) return p.owner;
+			if (p.user_first_name || p.userFirstName) {
+				const fn = p.user_first_name || p.userFirstName;
+				const ln = p.user_last_name || p.userLastName || '';
+				return `${fn}${ln ? ' ' + ln : ''}`.trim();
+			}
+		}
+
+		// Fall back to current authenticated user
+		const u = user as any;
+		if (!u) return '';
+		// Try common name fields
+		const first = u.firstName ?? u.first_name ?? u.given_name ?? (typeof u.name === 'string' ? u.name.split(' ')[0] : undefined);
+		const last = u.lastName ?? u.last_name ?? u.family_name ?? (typeof u.name === 'string' ? u.name.split(' ').slice(1).join(' ') : undefined);
+		if (first && last) return `${first} ${last}`.trim();
+		if (u.name && typeof u.name === 'string') return u.name;
+		if (u.email && typeof u.email === 'string') return u.email.split('@')[0];
+		return '';
+	};
 
 	useEffect(() => {
 		let mounted = true;
@@ -137,7 +163,7 @@ export default function CompletedPage() {
 
 	return (
 		<div className="min-h-screen bg-background">
-			{/* Navbar/header */}
+			{/* Navbar/header matching review page style */}
 			<div className="border-b bg-white dark:bg-gray-900 px-4 sm:px-6 py-4">
 				<div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-0">
 					<div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 lg:gap-6">
@@ -168,8 +194,7 @@ export default function CompletedPage() {
 								}</span>
 							</div>
 
-
-              <div className="flex items-center gap-2">
+							<div className="flex items-center gap-2">
                     <span className={`text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 ${
                       project?.priority === 'High' ? 'bg-red-100 text-red-700' : 
                       project?.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 
@@ -181,12 +206,13 @@ export default function CompletedPage() {
                       {project?.priority}
                     </span>
                     <span className="text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 bg-green-100 text-green-700">
-                      <CheckCircle className="h-3 w-3" />
+                      <CircleCheckBig className="h-3 w-3" />
                       Completed
                     </span>
-                  </div>
-                </div>
-                </div>
+							</div>
+						</div>
+					</div>
+
 				</div>
 			</div>
 
@@ -201,7 +227,7 @@ export default function CompletedPage() {
 					<div className="lg:col-span-2 space-y-4">
 						<Card>
 							<CardContent>
-								<h3 className="text-lg font-semibold mb-2">Tasks History</h3>
+								<h3 className="text-lg font-semibold mb-2">Tasks</h3>
 								{tasks.length === 0 ? (
 									<div className="text-muted-foreground">No tasks found for this hive.</div>
 								) : (
@@ -211,15 +237,16 @@ export default function CompletedPage() {
 												<div className="flex-1">
 													<div className="flex items-center gap-2 mb-1">
 														<h4 className="font-medium">{t.name}</h4>
-														<Badge className="bg-green-100 text-green-700">{t.status}</Badge>
+														<Badge className="bg-green-100 text-green-800">{t.status}</Badge>
 													</div>
 													{t.contents && <p className="text-sm text-muted-foreground line-clamp-2">{t.contents}</p>}
 													<div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
 																					{t.assignee && (
-																						<div className="flex items-center gap-1">
-																							<User className="h-4 w-4">
-																							</User>
-																							<span>{t.assignee}</span>
+																						<div className="flex items-center gap-2">
+																							<div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-medium flex-shrink-0">
+																								<User className="h-3 w-3 sm:h-4 sm:w-4" aria-hidden />
+																							</div>
+																							<span className="text-sm">{t.assignee}</span>
 																						</div>
 																					)}
 														{t.due_date && (
@@ -233,7 +260,6 @@ export default function CompletedPage() {
 
 												<div className="flex flex-col gap-2 ml-4">
 													<Button variant="outline" size="sm" onClick={() => openTaskHistory(t)}>
-														<MessageSquare className="h-4 w-4 mr-1" aria-hidden />
 														Feedback's
 													</Button>
 												</div>
@@ -247,9 +273,9 @@ export default function CompletedPage() {
 						{/* Project-level history */}
 						<Card>
 							<CardContent>
-								<h3 className="text-lg font-semibold mb-2">Changelogs History</h3>
+								<h3 className="text-lg font-semibold mb-2">Changelog History</h3>
 								{projectHistory.length === 0 ? (
-									<div className="text-muted-foreground">No Changelogs found for this hive.</div>
+									<div className="text-muted-foreground">No Changelog found for this hive.</div>
 								) : (
 									<div className="space-y-2 max-h-64 overflow-y-auto">
 										{projectHistory.slice().sort((a,b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime()).map((h) => (
@@ -278,10 +304,10 @@ export default function CompletedPage() {
 										<div className="text-xs text-muted-foreground">Owner:</div>
 										<div className="flex items-center gap-2 mt-1">
 																	<Avatar className="h-8 w-8">
-																		<AvatarFallback>{getInitials(project?.name || user?.email || String(project?.user_id || user?.user_id || 'U'))}</AvatarFallback>
+	                                                                    <AvatarFallback>{getInitials(getOwnerFullName() || project?.name || user?.email || String(project?.user_id || user?.user_id || 'U'))}</AvatarFallback>
 																	</Avatar>
 											<div>
-												<div className="font-medium">{project?.name ? project.name.split(' ')[0] : user?.email?.split('@')[0] || 'Owner'}</div>
+										<div className="font-medium">{getOwnerFullName() || (project?.name ? project.name.split(' ')[0] : user?.email?.split('@')[0] || 'Owner')}</div>
 												<div className="text-xs text-muted-foreground">{project?.status || 'Completed'}</div>
 											</div>
 										</div>
@@ -315,7 +341,7 @@ export default function CompletedPage() {
 				<Dialog open={selectedTaskHistory.length > 0} onOpenChange={(open) => { if (!open) { setSelectedTaskHistory([]); setSelectedTaskTitle(null); } }}>
 					<DialogContent className="max-w-2xl max-h-[80vh]">
 						<DialogHeader>
-							<DialogTitle>Feedback History - {selectedTaskTitle}</DialogTitle>
+							<DialogTitle>Feedback - {selectedTaskTitle}</DialogTitle>
 						</DialogHeader>
 						<div className="space-y-3 max-h-96 overflow-y-auto mt-2">
 							{selectedTaskHistory.length === 0 ? (

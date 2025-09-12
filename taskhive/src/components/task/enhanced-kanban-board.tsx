@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { Plus, MoreHorizontal, Calendar, Edit3, Trash2, X, GripVertical, MessageSquare, Flame, Gauge, Leaf, AlertTriangle, User, Circle, CircleUser } from 'lucide-react';
+import { Plus, MoreHorizontal, Calendar, Edit3, Trash2, X, GripVertical, MessageSquare, Flame, Gauge, Leaf, AlertTriangle, User } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -179,13 +179,6 @@ const reviewStatusConfig = {
   approved: { label: 'Approved', color: 'bg-green-100 text-green-800' },
   changes_requested: { label: 'Changes Requested', color: 'bg-red-100 text-red-800' },
   on_hold: { label: 'On Hold', color: 'bg-orange-100 text-orange-800' }
-};
-
-// Map item status to badge classes (allow extra statuses like 'Completed')
-const statusConfig: Record<string, string> = {
-  'Todo': 'bg-gray-100 text-gray-700',
-  'In Progress': 'bg-blue-100 text-blue-700',
-  'Done': 'bg-green-100 text-green-700',
 };
 
 export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanbanBoardProps = {}) {
@@ -678,9 +671,9 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
     const currentStatus = item.status;
     const options = [];
     
-    if (currentStatus !== 'Todo') options.push({ value: 'Todo', label: ' Todo', icon: '←' });
-    if (currentStatus !== 'In Progress') options.push({ value: 'In Progress', label: ' In Progress', icon: '↔' });
-    if (currentStatus !== 'Done') options.push({ value: 'Done', label: ' Done', icon: '→' });
+    if (currentStatus !== 'Todo') options.push({ value: 'Todo', label: 'Todo', icon: '←' });
+    if (currentStatus !== 'In Progress') options.push({ value: 'In Progress', label: 'in Progress', icon: '↔' });
+    if (currentStatus !== 'Done') options.push({ value: 'Done', label: 'Done', icon: '→' });
     
     return options;
   };
@@ -749,7 +742,6 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
             <Button 
               variant="ghost" 
               size="sm" 
-              // Always visible on mobile, hover-to-show on sm+ screens
               className="h-5 w-5 sm:h-6 sm:w-6 p-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex-shrink-0"
             >
               <MoreHorizontal className="h-2 w-2 sm:h-3 sm:w-3" />
@@ -944,15 +936,16 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
                     <h5 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
                       Current Status
                     </h5>
-                    {/* Use safe lookup with fallback for unknown statuses */}
-                    {(() => {
-                      const statusClasses = statusConfig[item.status] ?? 'bg-gray-100 text-gray-700';
-                      return (
-                        <Badge className={`text-sm ${statusClasses}`}>
-                          {item.status}
-                        </Badge>
-                      );
-                    })()}
+                    {/* Status-colored badge: Todo = gray, In Progress = blue, Done = green */}
+                    <Badge className={`text-sm ${
+                      item.status === 'In Progress'
+                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-700 dark:text-blue-100'
+                        : item.status === 'Done'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-700 dark:text-green-100'
+                          : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-100'
+                    }`}>
+                      {item.status}
+                    </Badge>
                   </div>
                 </div>
               </div>
@@ -993,9 +986,11 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
         </div>
 
         {item.assignee ? (
-          <div className="flex items-center">
-              <User className="h-4 w-4" aria-hidden />
-            <span className="text-s truncate max-w-[60px] sm:max-w-[80px]">{`@${item.assignee.split(' ')[0]}`}</span>
+          <div className="flex items-center space-x-2 flex-shrink-0">
+            <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-medium flex-shrink-0">
+              <User className="h-3 w-3 sm:h-4 sm:w-4" aria-hidden />
+            </div>
+            <span className="text-base truncate max-w-[60px] sm:max-w-[80px]">{item.assignee.split(' ')[0]}</span>
           </div>
         ) : null}
       </div>
@@ -1157,6 +1152,7 @@ const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
                 <Badge className={`text-xs font-bold ${editedItem.type ? typeConfig[editedItem.type].color : 'bg-gray-100 text-gray-700'}`}>
                   {editedItem.type ? typeConfig[editedItem.type].label : 'Task'}
                 </Badge>
+                
                 <Badge variant={priorityConfig[editedItem.priority].color} className={`text-xs ${priorityConfig[editedItem.priority].bgClass ?? ''} ${priorityConfig[editedItem.priority].textClass ?? ''}`}>
                   {priorityConfig[editedItem.priority].icon} {editedItem.priority}
                 </Badge>
@@ -1284,7 +1280,7 @@ const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
               </div>
               
               <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-600"> Assignee</label>
+                <label className="text-xs font-medium text-gray-600">👤 Assignee</label>
                 <Input
                   value={editedItem.assignee || ''}
                   onChange={(e) => setEditedItem({...editedItem, assignee: e.target.value})}

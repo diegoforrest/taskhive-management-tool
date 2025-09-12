@@ -76,20 +76,77 @@ const extractDataArray = <T,>(res: unknown): T[] => {
   return Array.isArray(res) ? (res as T[]) : [];
 };
 
-// Map backend changelogs to UI review data
-const mapChangelogsToReview = (rows: ChangeLogEntry[]) => {
-  const notes: ReviewNote[] = rows.map((r) => ({
-    id: String(r.id),
-    taskId: r.task_id || 0,
-    reviewerId: String(r.user_id || 'system'),
-    reviewerName: 'Senior Dev',
-    action: (r.new_status || '').toLowerCase().includes('request') ? 'request_changes' : 
-           (r.new_status || '').toLowerCase().includes('hold') ? 'hold_discussion' : 'approve',
-    reviewType: 'general_review',
-    notes: r.description || r.remark || '',
-    changeDetails: r.remark || undefined,
-    timestamp: r.createdAt || new Date().toISOString()
-  }));
+// Map backend changelogs to UI review data with robust parsing for structured remark format
+const mapChangelogsToReview = (rows: ChangeLogEntry[], currentUser?: any) => {
+  const deriveReviewerName = (r: ChangeLogEntry) => {
+    // If the changelog provides a user id but no name, try to use the current user's first name
+    if (r.user_id && currentUser) {
+      try {
+        const maybeName = (currentUser as Record<string, any>).firstName || (currentUser as Record<string, any>).name || (currentUser as Record<string, any>).email;
+        if (typeof maybeName === 'string' && maybeName.trim().length > 0) {
+          // If email was used, take the part before @ as a fallback
+          if (maybeName.includes('@')) return maybeName.split('@')[0];
+          return maybeName.split(' ')[0];
+        }
+      } catch (e) {
+        // ignore and fallback
+      }
+    }
+
+    // If changelog has no user info, mark as System
+    return r.user_id ? String(r.user_id) : 'System';
+  };
+
+  const parseRemark = (r: ChangeLogEntry) => {
+    const raw = (r.remark || r.description || '') as string;
+    let parsedNotes = '';
+    let parsedChangeDetails: string | undefined = undefined;
+
+    if (!raw || raw.trim().length === 0) return { parsedNotes: '', parsedChangeDetails };
+
+    // Try JSON structured format first: { notes: string, changes?: string }
+    try {
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === 'object') {
+        if (typeof obj.notes === 'string') parsedNotes = obj.notes;
+        if (typeof obj.changes === 'string' && obj.changes.trim().length > 0) parsedChangeDetails = obj.changes;
+        return { parsedNotes: parsedNotes || '', parsedChangeDetails };
+      }
+    } catch (e) {
+      // not JSON -> continue to legacy parsing
+    }
+
+    // Legacy plain text parsing: split on common separators
+    const separators = [' - Changes needed:', ' - Changes needed', '\nChanges Required:', '\nChanges Required', 'Changes Required:', 'Changes required:', ' - Requested changes:'];
+    for (const sep of separators) {
+      const idx = raw.indexOf(sep);
+      if (idx !== -1) {
+        parsedNotes = raw.slice(0, idx).trim();
+        parsedChangeDetails = raw.slice(idx + sep.length).trim();
+        return { parsedNotes, parsedChangeDetails };
+      }
+    }
+
+    // Fallback: whole raw text is notes
+    parsedNotes = raw;
+    return { parsedNotes, parsedChangeDetails };
+  };
+
+  const notes: ReviewNote[] = rows.map((r) => {
+    const { parsedNotes, parsedChangeDetails } = parseRemark(r as ChangeLogEntry);
+    return {
+      id: String(r.id),
+      taskId: r.task_id || 0,
+      reviewerId: String(r.user_id || 'system'),
+      reviewerName: deriveReviewerName(r),
+      action: (r.new_status || '').toLowerCase().includes('request') ? 'request_changes' :
+             (r.new_status || '').toLowerCase().includes('hold') ? 'hold_discussion' : 'approve',
+      reviewType: 'general_review',
+      notes: parsedNotes || '',
+      changeDetails: parsedChangeDetails || undefined,
+      timestamp: r.createdAt || new Date().toISOString()
+    } as ReviewNote;
+  });
 
   // Determine latest status from newest createdAt
   let latest: ChangeLogEntry | undefined;
@@ -134,25 +191,28 @@ const mapChangelogsToReview = (rows: ChangeLogEntry[]) => {
 
 const reviewActionConfig = {
   approve: {
-    label: 'Approve Task',
+    label: 'Approve & Complete',
     icon: CheckCircle,
     color: '!bg-green-500 hover:bg-green-600',
     textColor: '!text-green-700',
+    fontColor: '!text-green-700',
     bgColor: '!bg-green-100'
   },
   request_changes: {
     label: 'Request Changes',
     icon: XCircle,
-    color: 'bg-red-500 hover:bg-red-600',
-    textColor: 'text-red-700',
-    bgColor: 'bg-red-50'
+    color: '!bg-red-500 hover:bg-red-600',
+    textColor: '!text-red-700',
+    fontColor: '!text-red-700',
+    bgColor: '!bg-red-100'
   },
   hold_discussion: {
     label: 'Hold for Discussion',
     icon: Pause,
-    color: 'bg-orange-500 hover:bg-orange-600',
-    textColor: 'text-orange-400',
-    bgColor: 'bg-orange-50'
+    color: '!bg-orange-500 hover:bg-orange-600',
+    textColor: '!text-orange-400',
+    fontColor: '!text-orange-400',
+    bgColor: '!bg-orange-100'
   }
 };
 
@@ -160,7 +220,7 @@ const reviewStatusConfig = {
   pending: { label: 'Pending Review', color: 'bg-blue-100 text-blue-700' },
   approved: { label: 'Approved', color: 'bg-green-100 text-green-700' },
   changes_requested: { label: 'Changes Requested', color: 'bg-red-100 text-red-700' },
-  on_hold: { label: 'On Hold', color: 'bg-orange-100 text-orange-700' }
+  on_hold: { label: 'On Hold', color: 'bg-orange-100 text-orange-500' }
 };
 
 interface ReviewDashboardProps {
@@ -179,6 +239,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
   const [selectedAction, setSelectedAction] = useState<ReviewAction>('approve');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
   const [showToast, setShowToast] = useState<{ message: string; type?: 'success' | 'error' | 'info' } | null>(null);
   const [currentHistory, setCurrentHistory] = useState<ReviewNote[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -242,7 +303,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
               const rows = extractDataArray<ChangeLogEntry>(res);
               
               if (rows.length > 0) {
-                const mapped = mapChangelogsToReview(rows);
+                const mapped = mapChangelogsToReview(rows, user);
                 reviewNotes = mapped.notes;
                 reviewStatus = mapped.reviewStatus;
                 needsReview = mapped.needsReview;
@@ -317,7 +378,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
           target.id,
           target.status || 'Done',
           'Request Changes',
-          `Review: ${reviewNotes.trim()}${changeDetails ? ` - Changes needed: ${changeDetails}` : ''}`,
+          `Feedback: ${reviewNotes.trim()}${changeDetails ? ` - Changes needed: ${changeDetails}` : ''}`,
           target.projectId,
           Number(user?.user_id ?? 1)
         );
@@ -347,19 +408,8 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
       try {
         const res = await tasksApi.getChangelogs(target.id);
         const rows = extractDataArray<ChangeLogEntry>(res);
-        const notes: ReviewNote[] = rows.map((r) => ({
-          id: String(r.id),
-          taskId: r.task_id || target.id,
-          reviewerId: String(r.user_id || 'system'),
-          reviewerName: 'Senior Dev',
-          action: (r.new_status || '').toLowerCase().includes('request') ? 'request_changes' : 
-                 (r.new_status || '').toLowerCase().includes('hold') ? 'hold_discussion' : 'approve',
-          reviewType: 'general_review',
-          notes: r.description || r.remark || '',
-          changeDetails: r.remark || undefined,
-          timestamp: r.createdAt || new Date().toISOString()
-        }));
-        setCurrentHistory(notes);
+        const mapped = mapChangelogsToReview(rows, user);
+        setCurrentHistory(mapped.notes.map(n => ({ ...n, taskId: n.taskId || target.id })));
       } catch (e) {
         console.warn('Failed to refresh task history after submit:', e);
       }
@@ -378,7 +428,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
     }
   };
 
-  const handleProjectApproval = async (projectId: number) => {
+  const handleProjectApproval = async (projectId: number): Promise<boolean> => {
     try {
       console.log(`Approving entire project ${projectId}`);
       
@@ -396,11 +446,28 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
 
       // Create a single project-level changelog entry to record the approval (task_id set to 0 to indicate project-level)
       try {
+        // derive approver name (first + last) with sensible fallbacks
+        const approverName = (() => {
+          try {
+            const u = user as unknown as Record<string, any> | undefined;
+            if (!u) return `User ${user?.user_id ?? ''}`;
+            const first = u.firstName || u.first_name || (typeof u.name === 'string' ? u.name.split(' ')[0] : undefined);
+            const last = u.lastName || u.last_name || (typeof u.name === 'string' ? u.name.split(' ').slice(1).join(' ') : undefined);
+            if (first && last) return `${first} ${last}`;
+            if (u.name && typeof u.name === 'string') return u.name;
+            if (u.email && typeof u.email === 'string') return u.email.split('@')[0];
+            if (u.user_id || u.id) return `User ${u.user_id ?? u.id}`;
+            return 'User';
+          } catch (e) {
+            return 'User';
+          }
+        })();
+
         await tasksApi.createChangelog(
           0,
           'Done',
           'Completed',
-          `Project approved by Senior Dev`,
+          `Project approved by ${approverName}`,
           projectId,
           Number(user?.user_id ?? 1)
         );
@@ -409,70 +476,53 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
       }
 
       // Mark the project status as Completed in the backend
-        try {
-          await authApi.updateProject(projectId, { status: 'Completed' });
-          setShowToast({ message: 'Project approved and marked Completed', type: 'success' });
-          // Navigate to the project's detail page after successful approval
-          try {
-            // small delay so the success toast is visible
-            setTimeout(() => {
-              try { router.replace(`/dashboard/completed/${projectId}`); } catch (navErr) { console.warn('Failed to navigate after approval', navErr); }
-            }, 450);
-          } catch (navErr) {
-            console.warn('Failed to schedule navigation after approval', navErr);
-          }
-        } catch (e) {
+      try {
+        await authApi.updateProject(projectId, { status: 'Completed' });
+        setShowToast({ message: 'Project approved and marked Completed', type: 'success' });
+      } catch (e) {
         console.warn('Failed to update project status to Completed', projectId, e);
         setShowToast({ message: 'Failed to update project status', type: 'error' });
+        return false;
       }
 
       // Refresh the data to reflect changes
       await loadTasksForReview();
-      
+      return true;
     } catch (error) {
       console.error('Failed to approve project:', error);
       setShowToast({ message: 'Failed to approve project', type: 'error' });
+      return false;
     }
   };
 
   // When a task is opened in the dialog, load its persisted changelogs
   // Load changelogs when either the history dialog or the review dialog opens so the UI shows current data
   useEffect(() => {
-    const task = selectedTaskForHistory ?? selectedTaskForReview;
-    if (!task) {
-      setCurrentHistory([]);
-      return;
-    }
-
     let mounted = true;
-    (async () => {
+
+    const loadHistory = async () => {
+      const task = selectedTaskForHistory ?? selectedTaskForReview;
+      if (!task) {
+        setCurrentHistory([]);
+        return;
+      }
+
       try {
         const res = await tasksApi.getChangelogs(task.id);
         const rows = extractDataArray<ChangeLogEntry>(res);
-
-        const notes: ReviewNote[] = rows.map((r) => ({
-          id: String(r.id),
-          taskId: r.task_id || task.id,
-          reviewerId: String(r.user_id || 'system'),
-          reviewerName: 'Senior Dev',
-          action: (r.new_status || '').toLowerCase().includes('request') ? 'request_changes' : 
-                 (r.new_status || '').toLowerCase().includes('hold') ? 'hold_discussion' : 'approve',
-          reviewType: 'general_review',
-          notes: r.description || r.remark || '',
-          changeDetails: r.remark || undefined,
-          timestamp: r.createdAt || new Date().toISOString()
-        }));
-
+        const mapped = mapChangelogsToReview(rows, user);
         if (!mounted) return;
-        setCurrentHistory(notes);
+        setCurrentHistory(mapped.notes.map(n => ({ ...n, taskId: n.taskId || task.id })));
       } catch (e) {
         console.warn('Failed to load task history:', e);
         if (mounted) setCurrentHistory([]);
       }
-    })();
+    };
+
+    loadHistory();
 
     return () => { mounted = false; };
-  }, [selectedTaskForHistory, selectedTaskForReview]);
+  }, [selectedTaskForHistory, selectedTaskForReview, user]);
 
   const formatReviewDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -490,6 +540,8 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
     const t = setTimeout(() => setShowToast(null), 3500);
     return () => clearTimeout(t);
   }, [showToast]);
+
+  // no-op: keep `redirecting` only to drive the UI overlay
 
   const getReviewStats = () => {
     const pending = tasksForReview.filter(task => task.reviewStatus === 'pending' || !task.reviewStatus).length;
@@ -608,7 +660,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                     <span className="text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 bg-blue-100 text-blue-700">
                       <CheckCircle className="h-3 w-3" />
                       <span className="hidden sm:inline">Status: </span>
-                      TaskHive Err
+                      Team Review Center
                     </span>
                   </div>
                 </div>
@@ -622,7 +674,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
               <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
                 <DialogTrigger asChild>
                   <Button 
-                    className={`${allProjectApproved ? 'bg-green-400 hover:bg-green-500 text-black' : 'bg-gray-200 text-gray-600 cursor-not-allowed'}`}
+                    className={`${allProjectApproved ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-gray-200 text-gray-600 cursor-not-allowed'}`}
                     disabled={submitting || !allProjectApproved}
                     title={allProjectApproved ? 'Approve this project' : 'All tasks must be approved before approving the project'}
                   >
@@ -635,14 +687,26 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                   <DialogHeader>
                     <DialogTitle>Confirm Project Approval</DialogTitle>
                   </DialogHeader>
-                  <p>Are you sure you want to approve this project and mark it as Completed? This will update all visible tasks and set the project status to Completed</p>
+                  <p>Are you sure you want to approve this project and mark it as Completed? This will update all visible tasks and set the project status to Completed.</p>
                   <div className="flex justify-end gap-2 mt-4">
                     <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancel</Button>
                     <Button onClick={async () => {
                       setConfirmOpen(false);
                       setSubmitting(true);
                       try {
-                        await handleProjectApproval(currentProject.id);
+                        const ok = await handleProjectApproval(currentProject.id);
+                        if (ok) {
+                          // show redirecting overlay and small delay so the success toast is visible before navigation
+                          setRedirecting(true);
+                          setTimeout(() => {
+                            try {
+                              router.replace(`/dashboard/completed/${currentProject.id}`);
+                            } catch (navErr) {
+                              console.warn('Failed to navigate after approval', navErr);
+                              setRedirecting(false);
+                            }
+                          }, 450);
+                        }
                       } finally {
                         setSubmitting(false);
                       }
@@ -658,21 +722,29 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
       </div>
 
       {/* Main Content */}
-      <div className="space-y-6 p-4 lg:p-6">
+  <div className="space-y-6 p-4 lg:p-6 relative">
+        {redirecting && (
+          <div className="absolute inset-0 z-40 flex items-center justify-center">
+            <div className="relative z-50 w-full max-w-sm p-4 text-center">
+              <div className="mb-3 text-sm font-medium text-primary">Applying changes, preparing the page...</div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            </div>
+          </div>
+        )}
         {/* Page Header */}
         <div>
           {isProjectSpecific && currentProject ? (
             <>
               <h1 className="text-3xl font-bold tracking-tight">{currentProjectTitle}</h1>
               <p className="text-muted-foreground">
-                {currentProjectDescription || 'Taskhive Err'}
+                {currentProjectDescription || 'Review all completed tasks for this project and provide team feedback'}
               </p>
             </>
           ) : (
             <>
-              <h1 className="text-3xl font-bold tracking-tight">TaskHive Err</h1>
+              <h1 className="text-3xl font-bold tracking-tight">TaskHive Loading Data</h1>
               <p className="text-muted-foreground">
-                TaskHive Err
+                TaskHive Loading Data
               </p>
             </>
           )}
@@ -680,14 +752,14 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className={`cursor-pointer transition-all ${reviewFilter === 'pending' ? 'ring-2 ring-blue-600' : 'hover:shadow-md'}`} 
+          <Card className={`cursor-pointer transition-all ${reviewFilter === 'pending' ? 'ring-2 ring-blue-700' : 'hover:shadow-md'}`} 
                 onClick={() => setReviewFilter('pending')}>
             <CardContent className="p-4">
               <div className="flex items-center space-x-2">
-                <Clock className="h-5 w-5 text-blue-500" />
+                <Clock className="h-5 w-5 text-blue-700" />
                 <div>
                   <p className="text-sm text-muted-foreground">Pending Review</p>
-                  <p className="text-2xl font-bold text-blue-600">{stats.pending}</p>
+                  <p className="text-2xl font-bold text-blue-700">{stats.pending}</p>
                 </div>
               </div>
             </CardContent>
@@ -719,7 +791,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
             </CardContent>
           </Card>
 
-          <Card className={`cursor-pointer transition-all ${reviewFilter === 'on_hold' ? 'ring-2 ring-orange-400' : 'hover:shadow-md'}`}
+          <Card className={`cursor-pointer transition-all ${reviewFilter === 'on_hold' ? 'ring-2 ring-orange-500' : 'hover:shadow-md'}`}
                 onClick={() => setReviewFilter('on_hold')}>
             <CardContent className="p-4">
               <div className="flex items-center space-x-2">
@@ -802,7 +874,6 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                             </Badge>
                           )}
                         </div>
-
                         
                         {task.description && (
                           <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
@@ -835,8 +906,8 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                             const notes: ReviewNote[] = data.map((r) => ({
                               id: String(r.id),
                               taskId: r.task_id || task.id,
-                              reviewerId: String(r.user_id || 'system'),
-                              reviewerName: 'Senior Dev',
+                              reviewerId: String(r.user_id || 'User'),
+                              reviewerName: 'User',
                               action: (r.new_status || '').toLowerCase().includes('request') ? 'request_changes' : 
                                      (r.new_status || '').toLowerCase().includes('hold') ? 'hold_discussion' : 'approve',
                               reviewType: 'general_review',
@@ -863,7 +934,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                           setReviewNotes('');
                           setChangeDetails('');
                           setSelectedAction('approve');
-                        }}>Add Feedback</Button>
+                        }}>Add feedback</Button>
                       </div>
                     </div>
                   </div>
@@ -881,7 +952,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
       }}>
         <DialogContent className="max-w-2xl max-h-[80vh]">
           <DialogHeader>
-            <DialogTitle>Feedback history - {selectedTaskForHistory?.title}</DialogTitle>
+            <DialogTitle>Feedback's - {selectedTaskForHistory?.title}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 max-h-96 overflow-y-auto">
@@ -889,16 +960,28 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
               currentHistory.map((review) => {
                 const actionConfig = reviewActionConfig[review.action];
                 const IconComponent = actionConfig.icon;
+                // compute static classes per action so Tailwind's JIT can detect utilities
+                const badgeClass = review.action === 'approve'
+                  ? '!bg-green-100 !text-green-700'
+                  : review.action === 'request_changes'
+                    ? '!bg-red-100 !text-red-700'
+                    : '!bg-orange-100 !text-orange-400';
+                const iconClass = review.action === 'approve'
+                  ? '!text-green-700'
+                  : review.action === 'request_changes'
+                    ? '!text-red-700'
+                    : '!text-orange-400';
+
                 return (
                   <div key={review.id} className="border rounded-lg p-4">
                     <div className="flex items-start gap-3">
-                      <div className={`p-2 rounded-full ${actionConfig.bgColor}`}>
-                        <IconComponent className={`h-4 w-4 ${actionConfig.textColor}`} />
+                      <div className={`p-2 rounded-full ${actionConfig.bgColor && actionConfig.bgColor.startsWith('!') ? actionConfig.bgColor : '!' + actionConfig.bgColor}`}>
+                        <IconComponent className={`h-4 w-4 ${iconClass}`} />
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
                           <span className="font-medium">{review.reviewerName}</span>
-                          <Badge className={`${actionConfig.bgColor ?? ''} ${actionConfig.textColor ?? ''}`}>
+                          <Badge className={badgeClass}>
                             {actionConfig.label}
                           </Badge>
                           <span className="text-xs text-muted-foreground">
@@ -920,7 +1003,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No review history found for this task</p>
+                <p>No Feedback history found for this task</p>
               </div>
             )}
           </div>
@@ -944,7 +1027,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
           <div className="flex-1 overflow-hidden">
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium mb-2 block">Review Action</label>
+                <label className="text-sm font-medium mb-2 block">Feedback Action</label>
                 <Select value={selectedAction} onValueChange={(value: ReviewAction) => setSelectedAction(value)}>
                   <SelectTrigger>
                     <SelectValue />
@@ -952,8 +1035,8 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                   <SelectContent>
                     {Object.entries(reviewActionConfig).map(([key, config]) => (
                       <SelectItem key={key} value={key}>
-                        <div className={`flex items-center gap-2 ${config.textColor ?? ''}`}>
-                          <config.icon className={`h-4 w-4 ${config.textColor ?? ''}`} />
+                        <div className="flex items-center gap-2">
+                          <config.icon className="h-4 w-4" />
                           {config.label}
                         </div>
                       </SelectItem>
@@ -963,12 +1046,13 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
               </div>
 
               <div>
-                <label className="text-sm font-medium mb-2 block">Review Notes</label>
+                <label className="text-sm font-medium mb-2 block">Feedback Notes</label>
                 <Textarea
                   value={reviewNotes}
                   onChange={(e) => setReviewNotes(e.target.value)}
                   placeholder="Provide detailed feedback..."
-                  className="min-h-[100px] max-h-56 overflow-auto resize-none"
+                  className="h-20 sm:h-28 md:h-36 lg:h-40 overflow-auto resize-none"
+                  style={{ resize: 'none' }}
                 />
               </div>
 
@@ -979,7 +1063,8 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                     value={changeDetails}
                     onChange={(e) => setChangeDetails(e.target.value)}
                     placeholder="Describe specific changes that need to be made..."
-                    className="min-h-[100px] max-h-56 overflow-auto resize-none"
+                    className="h-20 sm:h-28 md:h-36 lg:h-40 overflow-auto resize-none"
+                    style={{ resize: 'none' }}
                   />
                 </div>
               )}
