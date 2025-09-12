@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -6,8 +6,10 @@ import * as bcrypt from 'bcryptjs';
 import { User } from '../entities/user.entity';
 import { Project } from '../entities/project.entity';
 import { Task } from '../entities/task.entity';
+import { PasswordResetToken } from './password-reset-token.entity';
 import { RegisterDto, LoginDto } from './dto';
 import { JwtPayload } from './strategies/jwt.strategy';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
@@ -18,7 +20,10 @@ export class AuthService {
     private projectRepository: Repository<Project>,
     @InjectRepository(Task)
     private taskRepository: Repository<Task>,
+    @InjectRepository(PasswordResetToken)
+    private tokenRepository: Repository<PasswordResetToken>,
     private jwtService: JwtService,
+    private configService: ConfigService,
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -459,6 +464,250 @@ export class AuthService {
       return { success: true, valid: matches };
     } catch (error) {
       throw new Error(`Failed to verify password: ${error.message}`);
+    }
+  }
+
+  // Request a password reset: generate a short-lived JWT token and send an email (or log link)
+  async requestPasswordReset(email: string) {
+    try {
+      const user = await this.userRepository.findOne({ where: { email } });
+
+      // If user does not exist, return a clear message as requested
+      if (!user) {
+        return { success: false, message: 'Email is not registered' };
+      }
+
+      // Rate-limit: do not allow creating a new token if one was created in the last 10 minutes
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+      const recentTokens = await this.tokenRepository.createQueryBuilder('t')
+        .where('t.user_id = :uid', { uid: user.user_id })
+        .andWhere('t.used = false')
+        .andWhere('t.createdAt > :since', { since: tenMinutesAgo.toISOString() })
+        .getCount();
+
+      if (recentTokens > 0) {
+        return { success: false, message: 'A reset link was recently sent. Please check your email.' };
+      }
+
+      // Generate a random token and store its hash
+      const crypto = await import('crypto');
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const saltRounds = 12;
+      const tokenHash = await bcrypt.hash(rawToken, saltRounds);
+
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      const tokenEntity = this.tokenRepository.create({
+        user_id: user.user_id,
+        user,
+        token_hash: tokenHash,
+        expires_at: expiresAt,
+        used: false,
+      });
+      const saved = await this.tokenRepository.save(tokenEntity);
+
+      const resetUrlBase = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
+      // Use tid in link to avoid scanning all tokens server-side
+      const resetLink = `${resetUrlBase}/auth/reset-password?tid=${saved.id}&token=${encodeURIComponent(rawToken)}`;
+
+      // Try provider: prefer SendGrid, then SMTP, else log
+      const sendgridKey = this.configService.get<string>('SENDGRID_API_KEY');
+      const smtpHost = this.configService.get<string>('SMTP_HOST');
+      const smtpUser = this.configService.get<string>('SMTP_USER');
+      const smtpPass = this.configService.get<string>('SMTP_PASS');
+      const fromAddress = this.configService.get<string>('SMTP_FROM', 'no-reply@taskhive.local');
+
+      // HTML template (simple) — can be extended
+      const html = `<p>Hello ${user.firstName || ''},</p>
+<p>You requested a password reset. Click the button below to reset your password:</p>
+<p><a href="${resetLink}" style="display:inline-block;padding:10px 16px;background:#1f2937;color:white;border-radius:6px;text-decoration:none">Reset password</a></p>
+<p>If you did not request this, you can ignore this message.</p>
+`;
+
+  let exposedLink: string | null = null;
+
+  if (sendgridKey) {
+        // send via SendGrid REST API using built-in https request to avoid extra deps
+        try {
+          const https = await import('https');
+          const payload = JSON.stringify({
+            personalizations: [{ to: [{ email: user.email }] }],
+            from: { email: fromAddress },
+            subject: 'TaskHive password reset',
+            content: [{ type: 'text/html', value: html }],
+          });
+
+          const options = {
+            hostname: 'api.sendgrid.com',
+            port: 443,
+            path: '/v3/mail/send',
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${sendgridKey}`,
+              'Content-Type': 'application/json',
+              'Content-Length': Buffer.byteLength(payload),
+            },
+          } as any;
+
+          await new Promise<void>((resolve, reject) => {
+            const req = (https as any).request(options, (res: any) => {
+              const chunks: any[] = [];
+              res.on('data', (c: any) => chunks.push(c));
+              res.on('end', () => {
+                if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) return resolve();
+                const text = Buffer.concat(chunks).toString('utf8');
+                console.warn('SendGrid send failed', res.statusCode, text);
+                return resolve();
+              });
+            });
+            req.on('error', (err: any) => {
+              console.warn('SendGrid send failed', err);
+              resolve();
+            });
+            req.write(payload);
+            req.end();
+          });
+        } catch (e) {
+          console.warn('SendGrid send failed', e);
+        }
+  } else if (smtpHost && smtpUser && smtpPass) {
+        let nodemailer: any;
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          nodemailer = require('nodemailer');
+        } catch (e) {
+          console.warn('nodemailer not available, cannot send email. Reset link:', resetLink);
+          return { success: true, message: 'Reset link generated and logged' };
+        }
+
+        const transporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: parseInt(this.configService.get<string>('SMTP_PORT', '587')),
+          secure: this.configService.get<string>('SMTP_SECURE', 'false') === 'true',
+          auth: { user: smtpUser, pass: smtpPass },
+        });
+
+        const mail = {
+          from: fromAddress,
+          to: user.email,
+          subject: 'TaskHive password reset',
+          text: `You requested a password reset. Click the link to reset your password: ${resetLink}`,
+          html,
+        };
+
+        await transporter.sendMail(mail);
+      } else {
+        console.warn('Password reset link (no provider configured):', resetLink);
+        // In development, it's handy to return the link in the response for testing.
+        const expose = this.configService.get<string>('DEV_EXPOSE_RESET_LINK', 'true');
+        if (expose === 'true' || process.env.NODE_ENV !== 'production') {
+          exposedLink = resetLink;
+        }
+      }
+
+      const response: any = { success: true, message: 'Reset link sent', tid: saved.id };
+      if (exposedLink) response.resetLink = exposedLink;
+      return response;
+    } catch (error) {
+      console.error('Failed to request password reset', error);
+      throw new Error(`Failed to request password reset: ${error.message}`);
+    }
+  }
+
+  // Validate a tid+token pair (used by frontend to pre-check token validity)
+  async validateResetToken(tid: number, token: string) {
+    try {
+      const rec = await this.tokenRepository.findOne({ where: { id: tid } });
+      if (!rec) return { success: false, message: 'Invalid token' };
+      if (rec.used) return { success: false, message: 'Token already used' };
+      if (rec.expires_at && rec.expires_at.getTime() < Date.now()) return { success: false, message: 'Token expired' };
+      const matches = await bcrypt.compare(token, rec.token_hash);
+      if (!matches) return { success: false, message: 'Token invalid' };
+      return { success: true, message: 'Token valid' };
+    } catch (e) {
+      console.error('validateResetToken error', e);
+      return { success: false, message: 'Validation failed' };
+    }
+  }
+
+  // Reset using tid + raw token — more efficient than scanning all tokens
+  async resetPasswordWithId(tid: number, token: string, newPassword: string) {
+    try {
+      if (!token) throw new BadRequestException('Missing token');
+      if (!newPassword || newPassword.length < 8) throw new BadRequestException('New password must be at least 8 characters');
+
+      const rec = await this.tokenRepository.findOne({ where: { id: tid } });
+      if (!rec) throw new BadRequestException('Invalid or expired token');
+      if (rec.used) throw new BadRequestException('Token already used');
+      if (rec.expires_at && rec.expires_at.getTime() < Date.now()) throw new BadRequestException('Token expired');
+
+      const matches = await bcrypt.compare(token, rec.token_hash);
+      if (!matches) throw new BadRequestException('Invalid token');
+
+      const user = await this.userRepository.findOne({ where: { user_id: rec.user_id } });
+      if (!user) throw new Error('User not found');
+
+      const saltRounds = 12;
+      const hashed = await bcrypt.hash(newPassword, saltRounds);
+      await this.userRepository.update(user.user_id, { password: hashed });
+
+      rec.used = true;
+      await this.tokenRepository.save(rec);
+
+      return { success: true, message: 'Password has been reset' };
+    } catch (error) {
+      throw new Error(`Failed to reset password: ${error.message}`);
+    }
+  }
+
+  // Reset the password using the token generated above
+  async resetPassword(token: string, newPassword: string) {
+    try {
+      if (!token) throw new BadRequestException('Missing token');
+      if (!newPassword || newPassword.length < 8) throw new BadRequestException('New password must be at least 8 characters');
+
+      // Find a matching, un-used token by comparing hashes
+      const tokens = await this.tokenRepository.find({ where: { used: false } });
+      let matched: PasswordResetToken | null = null;
+      for (const t of tokens) {
+        // Check expiry
+        if (t.expires_at && t.expires_at.getTime() < Date.now()) continue;
+        const matches = await bcrypt.compare(token, t.token_hash);
+        if (matches) {
+          matched = t;
+          break;
+        }
+      }
+
+      if (!matched) throw new BadRequestException('Invalid or expired token');
+
+      const user = await this.userRepository.findOne({ where: { user_id: matched.user_id } });
+      if (!user) throw new Error('User not found');
+
+      const saltRounds = 12;
+      const hashed = await bcrypt.hash(newPassword, saltRounds);
+      await this.userRepository.update(user.user_id, { password: hashed });
+
+      // mark token used
+      matched.used = true;
+      await this.tokenRepository.save(matched);
+
+      return { success: true, message: 'Password has been reset' };
+    } catch (error) {
+      throw new Error(`Failed to reset password: ${error.message}`);
+    }
+  }
+
+  // DEV utility: delete all reset tokens for an email
+  async deleteResetTokensForEmail(email: string) {
+    try {
+      const user = await this.userRepository.findOne({ where: { email } });
+      if (!user) return { success: false, message: 'User not found' };
+      const res = await this.tokenRepository.createQueryBuilder().delete().from('password_reset_tokens').where('user_id = :uid', { uid: user.user_id }).execute();
+      return { success: true, deleted: res.affected };
+    } catch (e) {
+      console.error('deleteResetTokensForEmail error', e);
+      return { success: false, message: e.message || 'Failed' };
     }
   }
 }

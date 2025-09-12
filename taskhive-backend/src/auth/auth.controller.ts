@@ -180,4 +180,41 @@ export class AuthController {
     }
     return this.authService.verifyPassword(numericId, body.password);
   }
+
+  // Request password reset (sends an email with a reset link)
+  @Post('test14/forgot_password')
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(@Body() body: { email: string }) {
+    const { email } = body;
+    return this.authService.requestPasswordReset(email);
+  }
+
+  // Reset password using token from email
+  @Post('test15/reset_password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body() body: { tid: number; token: string; newPassword: string }) {
+    const { tid, token, newPassword } = body;
+    return this.authService.resetPasswordWithId(tid, token, newPassword);
+  }
+
+  // Validate token before showing reset form
+  @Get('test16/validate_reset')
+  @HttpCode(HttpStatus.OK)
+  async validateReset(@Query('tid') tid: string, @Query('token') token: string) {
+    const numericTid = parseInt(tid, 10);
+    if (isNaN(numericTid)) throw new Error('Invalid token id');
+    return this.authService.validateResetToken(numericTid, token);
+  }
+
+  // DEV-ONLY: remove all reset tokens for an email so a fresh one can be created.
+  // Only enabled when not in production.
+  @Post('dev/delete_reset_tokens')
+  @HttpCode(HttpStatus.OK)
+  async deleteResetTokensDev(@Body() body: { email: string }) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Not allowed in production');
+    }
+    const { email } = body;
+    return (this.authService as any).deleteResetTokensForEmail?.(email) ?? { success: false, message: 'Not implemented' };
+  }
 }

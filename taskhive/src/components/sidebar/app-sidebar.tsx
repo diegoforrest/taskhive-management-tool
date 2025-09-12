@@ -5,7 +5,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
-import { ClipboardCheck, ChevronDown, ChevronRight, Calendar, FolderOpen, CheckSquare, ChevronUp, BadgeQuestionMark, Github, User2, LogOut, Target, Flame, Zap, Leaf } from "lucide-react"
+import { ClipboardCheck, ChevronDown, ChevronRight, Calendar, FolderOpen, CheckSquare, ChevronUp, BadgeQuestionMark, Github, User2, LogOut, Target, Flame, Zap, Leaf, LayoutDashboard, MessageSquareCode, CircleCheck } from "lucide-react"
 
 import {
   Sidebar,
@@ -287,7 +287,7 @@ export function AppSidebar() {
     {
       title: "Dashboard",
       url: "/dashboard",
-      icon: FolderOpen,
+      icon: LayoutDashboard,
       badge: userProjects.length.toString(),
     }
   ]
@@ -454,7 +454,7 @@ export function AppSidebar() {
                   <SidebarMenuButton asChild>
                     <Link href={isAuthenticated ? "/dashboard?tab=review" : "/auth/sign-in"} className="flex items-center w-full">
                       <span className="flex-shrink-0 group-data-[state=collapsed]:mx-auto">
-                        <CheckSquare className="h-4 w-4" />
+                        <MessageSquareCode className="h-4 w-4" />
                       </span>
                       <span className="ml-2 transition-all duration-200 ease-in-out group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:w-0 group-data-[state=collapsed]:overflow-hidden">Review</span>
                     </Link>
@@ -536,7 +536,7 @@ export function AppSidebar() {
                   <SidebarMenuButton asChild>
                     <Link href={isAuthenticated ? "/dashboard?tab=completed" : "/auth/sign-in"} className="flex items-center w-full">
                       <span className="flex-shrink-0 group-data-[state=collapsed]:mx-auto">
-                        <ClipboardCheck className="h-4 w-4" />
+                        <CircleCheck className="h-4 w-4" />
                       </span>
                       <span className="ml-2 transition-all duration-200 ease-in-out group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:w-0 group-data-[state=collapsed]:overflow-hidden">Completed</span>
                     </Link>

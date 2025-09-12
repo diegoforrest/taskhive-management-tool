@@ -10,10 +10,11 @@ import { User } from '../entities/user.entity';
 import { Project } from '../entities/project.entity';
 import { Task } from '../entities/task.entity';
 import { ChangeLog } from '../entities/changelog.entity';
+import { PasswordResetToken } from './password-reset-token.entity';
 
 @Module({
   imports: [
-  TypeOrmModule.forFeature([User, Project, Task, ChangeLog]),
+  TypeOrmModule.forFeature([User, Project, Task, ChangeLog, PasswordResetToken]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

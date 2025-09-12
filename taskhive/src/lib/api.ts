@@ -251,6 +251,35 @@ export const authApi = {
     return res
   },
 
+  // Reset password using token (frontend calls POST /test15/reset_password { token, newPassword })
+  resetPassword: async (token: string, newPassword: string) => {
+    console.log('Real API reset password request')
+    const res = await apiRequest(`/test15/reset_password`, {
+      method: 'POST',
+      data: { token, newPassword },
+    })
+    return res
+  },
+
+  // Reset password using tid + token
+  resetPasswordWithTid: async (tid: number, token: string, newPassword: string) => {
+    console.log('Real API reset password with tid request')
+    const res = await apiRequest(`/test15/reset_password`, {
+      method: 'POST',
+      data: { tid, token, newPassword },
+    })
+    return res
+  },
+
+  // Validate reset token (tid + token)
+  validateReset: async (tid: number, token: string) => {
+    console.log('Real API validate reset token')
+    const res = await apiRequest(`/test16/validate_reset?tid=${tid}&token=${encodeURIComponent(token)}`, {
+      method: 'GET',
+    })
+    return res
+  },
+
   createTask: async (taskData: {
     project_id: number;
     name: string;

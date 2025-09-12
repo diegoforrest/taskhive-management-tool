@@ -45,6 +45,17 @@ $ npm run start:prod
 ```
 
 ## Run tests
+## Password reset / email configuration
+
+This project supports sending password reset emails using either SendGrid (preferred) or SMTP (nodemailer). Configure one of the following in your `.env`:
+
+- SENDGRID_API_KEY=YOUR_KEY
+  - If set, the backend will call SendGrid's API to send transactional emails.
+
+- or set SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_PORT, SMTP_FROM
+  - If SMTP_* variables are present, the backend will use nodemailer to send emails.
+
+If neither provider is configured, the backend will still generate a reset link and log it to the server console for development/testing.
 
 ```bash
 # unit tests
