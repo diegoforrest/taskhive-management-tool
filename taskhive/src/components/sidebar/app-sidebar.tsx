@@ -1,64 +1,36 @@
 "use client"
 
 import * as React from "react"
-import {
-  // Calendar (unused)
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
-  FolderOpen,
-  Flame,
-  Zap,
-  Leaf,
-  // Home (unused)
-  // MoreHorizontal (unused)
-  Plus,
-  Settings,
-  User2,
-  // Users (unused)
-  BarChart3,
-  CheckSquare,
-  Target,
-  LogOut,
-  ClipboardCheck,
-} from "lucide-react"
-import Link from "next/link"
 import Image from "next/image"
+import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
+import { ClipboardCheck, ChevronDown, ChevronRight, Calendar, FolderOpen, CheckSquare, ChevronUp, BadgeQuestionMark, Github, User2, Settings, LogOut, Target, Flame, Zap, Leaf } from "lucide-react"
 
 import {
   Sidebar,
+  SidebarHeader,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupLabel,
-  SidebarHeader,
   SidebarMenu,
-  SidebarMenuAction,
-  SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarMenuAction,
   SidebarMenuSub,
-  SidebarMenuSubButton,
   SidebarMenuSubItem,
-  SidebarMenuBadge,
+  SidebarMenuSubButton,
   SidebarRail,
 } from "@/components/ui/sidebar"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
-import { Badge } from "@/components/ui/badge"
+
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible"
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 
 import { useAuth } from "@/lib/auth-context"
 import { authApi, Task, Project } from "@/lib/api"
+import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 
 // Sidebar project shape (Project plus UI fields)
 type SidebarProject = Project & {
@@ -111,16 +83,10 @@ export function AppSidebar() {
   // Track whether the Completed group (parent) is open
   const [completedGroupOpen, setCompletedGroupOpen] = useState(false)
 
-  // Auto-open Review group when on the review page
+  // No automatic opening of dropdowns based on route. Dropdowns are
+  // controlled exclusively by user interaction (clicking the chevron).
   useEffect(() => {
-    if (!pathname) return
-    if (pathname.startsWith('/dashboard/review')) {
-      setReviewGroupOpen(true)
-    }
-    // Auto-open Completed group when on the completed page
-    if (pathname.startsWith('/dashboard/completed')) {
-      setCompletedGroupOpen(true)
-    }
+    // Intentionally empty to avoid auto-opening Review/Completed groups.
   }, [pathname])
 
   // Debug: log userProjects and their tasks (only once, after state declarations)
@@ -133,32 +99,13 @@ export function AppSidebar() {
     }
   }, [userProjects]);
 
-  // Automatically open the Projects group and the matching project when on a project route.
-  // Otherwise, keep Projects closed (so dashboard shows all closed)
+  // Do not auto-open or auto-close the Projects group; users control
+  // expand/collapse via the chevron. Keep the effect present only if
+  // other consumers expect pathname changes; otherwise it's a no-op.
   useEffect(() => {
-    if (!pathname) return
-
-    // If we're on a specific project page, open Projects and that project
-    const match = userProjects.find((p) => pathname.startsWith(`/dashboard/projects/${p.id}`))
-    if (match) {
-      setProjectsGroupOpen(true)
-      setOpenProjects((prev) => ({ ...prev, [match.id]: true }))
-      return
-    }
-
-    // If we're on the dashboard index, keep the Projects group open but don't auto-open any project
-    if (pathname === '/dashboard' || pathname === '/dashboard/') {
-      setProjectsGroupOpen(true)
-      setOpenProjects({})
-      return
-    }
-
-    // Otherwise (not dashboard nor project page) collapse Projects
-    setProjectsGroupOpen(false)
-    setOpenProjects({})
+    // Intentionally empty to avoid auto-opening Projects or altering openProjects.
   }, [pathname, userProjects])
 
-  // ...existing code...
 
 
   // Get user display name
@@ -342,24 +289,7 @@ export function AppSidebar() {
       url: "/dashboard",
       icon: FolderOpen,
       badge: userProjects.length.toString(),
-    },
-    {
-      title: "Projects",
-      url: "/dashboard?tab=all",
-      icon: FolderOpen,
-      badge: userProjects.length > 0 ? userProjects.length.toString() : undefined,
-    },
-    {
-      title: "Review Dashboard",
-      url: "/dashboard?tab=review",
-      icon: ClipboardCheck,
-    },
-    {
-      title: "Completed",
-      url: "/dashboard?tab=completed",
-      icon: CheckSquare,
-    },
-  
+    }
   ]
 
   // Projects that are in Review status (case-insensitive)
@@ -381,8 +311,14 @@ export function AppSidebar() {
     return !(s === 'review' || s === 'in review' || s === 'to review' || s === 'to-review' || s === 'toreview')
   })
 
+  // Projects that are In Progress (explicit filter for Projects dropdown)
+  const inProgressProjects = userProjects.filter((p) => {
+    const s = (p.status || p.project_status || '').toString().toLowerCase()
+    return s === 'in progress' || s === 'inprogress' || s === 'in_progress' || s === 'started' || s === 'progress' || s === 'ongoing'
+  })
+
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" className="transition-all duration-200 ease-in-out">
       <SidebarHeader>
     <SidebarMenu>
       <SidebarMenuItem>
@@ -401,7 +337,7 @@ export function AppSidebar() {
               className="rounded"
             />
             <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-bold text-xl">taskHive</span>
+              <span className="truncate font-bold text-xl transition-all duration-200 ease-in-out group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:w-0 group-data-[state=collapsed]:overflow-hidden">taskHive</span>
             </div>
           </Link>
         </SidebarMenuButton>
@@ -417,534 +353,293 @@ export function AppSidebar() {
             {navigationItems.map((item) => (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton asChild>
-                  <Link href={item.url} className="flex items-center w-full">
+                  <Link href={isAuthenticated ? item.url : '/auth/sign-in'} className="flex items-center w-full">
                     <span className="flex-shrink-0 group-data-[state=collapsed]:mx-auto">
-                      <item.icon className="h-5 w-5" />
+                      <item.icon className="h-4 w-4" />
                     </span>
-                    <span className="ml-2 group-data-[state=collapsed]:hidden">{item.title}</span>
+                    <span className="ml-2 transition-all duration-200 ease-in-out group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:w-0 group-data-[state=collapsed]:overflow-hidden">{item.title}</span>
                   </Link>
                 </SidebarMenuButton>
-                {item.badge && (
-                  <SidebarMenuBadge>{item.badge}</SidebarMenuBadge>
-                )}
+                {/* header-level badges removed intentionally */}
               </SidebarMenuItem>
             ))}
-            {/* Test dropdown: Project-test (acts like Projects group) */}
+
+
+                        {/* Projects (not in review) */}
             <SidebarMenuItem>
-              <Collapsible open={!!projectsGroupOpen} onOpenChange={setProjectsGroupOpen} className="w-full">
-                <SidebarMenuButton asChild>
-                  <div className="flex items-center w-full">
-                    <Link href="#" className="flex items-center w-full">
-                      <span className="flex-shrink-0 group-data-[state=collapsed]:mx-auto"><FolderOpen className="h-5 w-5" /></span>
-                      <span className="ml-2 group-data-[state=collapsed]:hidden">Project-test</span>
+              <Collapsible open={projectsGroupOpen} onOpenChange={setProjectsGroupOpen}>
+                <div className="relative">
+                  <SidebarMenuButton asChild>
+                              <Link href={isAuthenticated ? "/dashboard?tab=all" : "/auth/sign-in"} className="flex items-center w-full">
+                      <span className="flex-shrink-0 group-data-[state=collapsed]:mx-auto">
+                        <FolderOpen className="h-4 w-4" />
+                      </span>
+                      <span className="ml-2 transition-all duration-200 ease-in-out group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:w-0 group-data-[state=collapsed]:overflow-hidden">Projects</span>
                     </Link>
-                    <CollapsibleTrigger asChild>
-                      <SidebarMenuAction className="ml-2 data-[state=open]:rotate-90 transform transition-transform duration-200">
-                        <ChevronRight />
-                      </SidebarMenuAction>
-                    </CollapsibleTrigger>
-                  </div>
-                </SidebarMenuButton>
-                <CollapsibleContent className="group-data-[state=collapsed]:absolute group-data-[state=collapsed]:left-14 group-data-[state=collapsed]:top-2 group-data-[state=collapsed]:z-50 group-data-[state=collapsed]:w-64">
-                  <SidebarMenu>
-                    {otherProjects.map((project) => (
-                      <Collapsible key={`test-folder-${project.id}`} open={!!openProjects[project.id]} onOpenChange={(isOpen) => setOpenProjects((prev) => ({ ...prev, [project.id]: isOpen }))} className="w-full">
-                        <SidebarMenuItem>
-                          <div className="flex items-center w-full">
-                              <SidebarMenuButton asChild>
-                              <Link href={project.url || `/dashboard/projects/${project.id}`} className="flex items-center w-full" onClick={(e) => e.stopPropagation()}>
-                                <span className="flex-shrink-0"><div className="w-6 h-6 rounded-full flex items-center justify-center">{getPriorityIcon(project.priority)}</div></span>
-                                <span className="ml-2 truncate text-sm font-medium">{project.name}</span>
+                  </SidebarMenuButton>
+
+                  <SidebarMenuAction aria-expanded={projectsGroupOpen} onClick={(e) => { e.stopPropagation(); setProjectsGroupOpen((s) => !s); }}>
+                    {projectsGroupOpen ? (
+                      <ChevronDown className="size-4 transition-transform" />
+                    ) : (
+                      <ChevronRight className="size-4 transition-transform" />
+                    )}
+                  </SidebarMenuAction>
+                </div>
+
+                <CollapsibleContent>
+                  <SidebarMenuSub>
+                    {inProgressProjects.map((p) => (
+                      <SidebarMenuSubItem key={p.id}>
+                        <Collapsible open={!!openProjects[p.id]} onOpenChange={(val) => setOpenProjects((prev) => ({ ...prev, [p.id]: val }))}>
+                          <div className="relative">
+                            <SidebarMenuSubButton asChild>
+                              <Link href={isAuthenticated ? `/dashboard/projects/${p.id}` : "/auth/sign-in"} className="flex items-center w-full">
+                                <span className="flex-shrink-0 group-data-[state=collapsed]:mx-auto">
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="cursor-help inline-flex items-center">
+                                        <Calendar className="h-4 w-4" />
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent sideOffset={4}>{getProjectTooltipText(p, false)}</TooltipContent>
+                                  </Tooltip>
+                                </span>
+                                <span className="ml-2 truncate">{p.name}</span>
                               </Link>
-                            </SidebarMenuButton>
-                            <CollapsibleTrigger asChild>
-                              <SidebarMenuAction className="ml-2 transform transition-transform duration-200">
-                                <ChevronRight />
-                              </SidebarMenuAction>
-                            </CollapsibleTrigger>
+                            </SidebarMenuSubButton>
+
+                            <SidebarMenuAction aria-expanded={!!openProjects[p.id]} onClick={(e) => { e.stopPropagation(); setOpenProjects((prev) => ({ ...prev, [p.id]: !prev[p.id] })); }}>
+                              {openProjects[p.id] ? (
+                                <ChevronDown className="size-4 transition-transform" />
+                              ) : (
+                                <ChevronRight className="size-4 transition-transform" />
+                              )}
+                            </SidebarMenuAction>
                           </div>
+
                           <CollapsibleContent>
-                            { (project.tasks || []).length > 0 ? (
-                              <SidebarMenuSub>
-                                {(project.tasks || []).map((task: Task) => (
-                                  <SidebarMenuSubItem key={`test-task-${task.id}`}>
-                                    <SidebarMenuSubButton asChild>
-                                      <Link href={task.url || `/dashboard/projects/${project.id}#task-${task.id}`} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-sidebar-accent transition-colors w-full">
-                                        <span className={
-                                          `inline-block w-2 h-2 rounded-full shrink-0 ` +
-                                          (task.status === "Done" || task.status === "Completed"
-                                            ? "bg-green-500"
-                                            : task.status === "In Progress"
-                                            ? "bg-blue-500"
-                                            : "bg-gray-400")
-                                        } />
-                                        <span className="truncate flex-1 text-sm">{task.title}</span>
-                                        <Badge className={task.priority === 'High' ? 'bg-red-100 text-red-700' : task.priority === 'Medium' ? 'bg-yellow-50 text-yellow-700' : 'bg-gray-100 text-gray-700'}>
-                                          {task.priority}
-                                        </Badge>
-                                      </Link>
-                                    </SidebarMenuSubButton>
-                                  </SidebarMenuSubItem>
-                                ))}
-                              </SidebarMenuSub>
-                            ) : (
-                              <div className="px-4 py-2 text-xs text-muted-foreground">No tasks</div>
-                            )}
+                            <SidebarMenuSub>
+                              {p.tasks && p.tasks.length > 0 ? p.tasks.map((task) => (
+                                <SidebarMenuSubItem key={task.id}>
+                                  <SidebarMenuSubButton asChild>
+                                    <Link href={isAuthenticated ? (`/dashboard/projects/${p.id}#task-${task.id}`) : "/auth/sign-in"} className="flex items-center w-full">
+                                      <span className="flex-shrink-0 group-data-[state=collapsed]:mx-auto flex items-center gap-2">
+                                        {getPriorityIcon(task.priority)}
+                                        <span className={`inline-block h-2 w-2 rounded-full ${getStatusDotClass(task.status)}`} aria-hidden="true" />
+                                      </span>
+                                      <span className="ml-2 truncate">{task.title || task.name || 'Untitled Task'}</span>
+                                    </Link>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              )) : (
+                                <SidebarMenuSubItem>
+                                  <div className="px-2 text-xs text-muted-foreground">No tasks</div>
+                                </SidebarMenuSubItem>
+                              )}
+                            </SidebarMenuSub>
                           </CollapsibleContent>
-                        </SidebarMenuItem>
-                      </Collapsible>
+                        </Collapsible>
+                      </SidebarMenuSubItem>
                     ))}
-                  </SidebarMenu>
+                  </SidebarMenuSub>
                 </CollapsibleContent>
               </Collapsible>
             </SidebarMenuItem>
 
-            {/* Test dropdown: Review-test */}
+            {/* Review group */}
             <SidebarMenuItem>
-              <Collapsible open={!!reviewGroupOpen} onOpenChange={setReviewGroupOpen} className="w-full">
-                <SidebarMenuButton asChild>
-                  <div className="flex items-center w-full">
-                    <Link href="#" className="flex items-center w-full">
-                      <span className="flex-shrink-0 group-data-[state=collapsed]:mx-auto"><BarChart3 className="h-5 w-5" /></span>
-                      <span className="ml-2 group-data-[state=collapsed]:hidden">Review-test</span>
+              <Collapsible open={reviewGroupOpen} onOpenChange={setReviewGroupOpen}>
+                <div className="relative">
+                  <SidebarMenuButton asChild>
+                    <Link href={isAuthenticated ? "/dashboard?tab=review" : "/auth/sign-in"} className="flex items-center w-full">
+                      <span className="flex-shrink-0 group-data-[state=collapsed]:mx-auto">
+                        <CheckSquare className="h-4 w-4" />
+                      </span>
+                      <span className="ml-2 transition-all duration-200 ease-in-out group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:w-0 group-data-[state=collapsed]:overflow-hidden">Review</span>
                     </Link>
-                    <CollapsibleTrigger asChild>
-                      <SidebarMenuAction className="ml-2"><ChevronRight /></SidebarMenuAction>
-                    </CollapsibleTrigger>
-                  </div>
-                </SidebarMenuButton>
-                <CollapsibleContent className="group-data-[state=collapsed]:absolute group-data-[state=collapsed]:left-14 group-data-[state=collapsed]:top-2 group-data-[state=collapsed]:z-50 group-data-[state=collapsed]:w-64">
-                  <SidebarMenu>
-                    {reviewProjects.map((project) => (
-                      <Collapsible key={`review-test-${project.id}`} open={!!openProjects[project.id]} onOpenChange={(isOpen) => setOpenProjects((prev) => ({ ...prev, [project.id]: isOpen }))} className="w-full">
-                        <SidebarMenuItem>
-                          <div className="flex items-center w-full">
-                              <SidebarMenuButton asChild>
-                              <Link href={`/dashboard/review?projectId=${project.id}`} className="flex items-center w-full" onClick={(e) => e.stopPropagation()}>
-                                <span className="flex-shrink-0"><div className="w-6 h-6 rounded-full flex items-center justify-center">{getPriorityIcon(project.priority)}</div></span>
-                                <span className="ml-2 truncate text-sm font-medium">{project.name}</span>
+                  </SidebarMenuButton>
+
+                  <SidebarMenuAction aria-expanded={reviewGroupOpen} onClick={(e) => { e.stopPropagation(); setReviewGroupOpen((s) => !s); }}>
+                    {reviewGroupOpen ? (
+                      <ChevronDown className="size-4 transition-transform" />
+                    ) : (
+                      <ChevronRight className="size-4 transition-transform" />
+                    )}
+                  </SidebarMenuAction>
+                </div>
+
+                <CollapsibleContent>
+                  <SidebarMenuSub>
+                    {reviewProjects.map((p) => (
+                      <SidebarMenuSubItem key={p.id}>
+                        <Collapsible open={!!openProjects[p.id]} onOpenChange={(val) => setOpenProjects((prev) => ({ ...prev, [p.id]: val }))}>
+                          <div className="relative">
+                            <SidebarMenuSubButton asChild>
+                              <Link href={isAuthenticated ? `/dashboard/review?projectId=${p.id}` : "/auth-sign-in"} className="flex items-center w-full">
+                                <span className="flex-shrink-0 group-data-[state=collapsed]:mx-auto">
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="cursor-help inline-flex items-center">
+                                        <Calendar className="h-4 w-4" />
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent sideOffset={4}>{getProjectTooltipText(p, false)}</TooltipContent>
+                                  </Tooltip>
+                                </span>
+                                <span className="ml-2 truncate">{p.name}</span>
                               </Link>
-                            </SidebarMenuButton>
-                            <CollapsibleTrigger asChild>
-                              <SidebarMenuAction className="ml-2 transform transition-transform duration-200"><ChevronRight /></SidebarMenuAction>
-                            </CollapsibleTrigger>
+                            </SidebarMenuSubButton>
+
+                            <SidebarMenuAction aria-expanded={!!openProjects[p.id]} onClick={(e) => { e.stopPropagation(); setOpenProjects((prev) => ({ ...prev, [p.id]: !prev[p.id] })); }}>
+                              {openProjects[p.id] ? (
+                                <ChevronDown className="size-4 transition-transform" />
+                              ) : (
+                                <ChevronRight className="size-4 transition-transform" />
+                              )}
+                            </SidebarMenuAction>
                           </div>
+
                           <CollapsibleContent>
-                            { (project.tasks || []).length > 0 ? (
-                              <SidebarMenuSub>
-                                {(project.tasks || []).map((task: Task) => (
-                                  <SidebarMenuSubItem key={`review-test-task-${task.id}`}>
-                                    <SidebarMenuSubButton asChild>
-                                      <Link href={task.url || `/dashboard/review?projectId=${project.id}#task-${task.id}`} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-sidebar-accent transition-colors w-full">
-                                        <span className={
-                                          `inline-block w-2 h-2 rounded-full shrink-0 ` +
-                                          (task.status === "Done" || task.status === "Completed"
-                                            ? "bg-green-500"
-                                            : task.status === "In Progress"
-                                            ? "bg-blue-500"
-                                            : "bg-gray-400")
-                                        } />
-                                        <span className="truncate flex-1 text-sm">{task.title}</span>
-                                        <Badge className={task.priority === 'High' ? 'bg-red-100 text-red-700' : task.priority === 'Medium' ? 'bg-yellow-50 text-yellow-700' : 'bg-gray-100 text-gray-700'}>
-                                          {task.priority}
-                                        </Badge>
-                                      </Link>
-                                    </SidebarMenuSubButton>
-                                  </SidebarMenuSubItem>
-                                ))}
-                              </SidebarMenuSub>
-                            ) : (
-                              <div className="px-4 py-2 text-xs text-muted-foreground">No tasks</div>
-                            )}
+                            <SidebarMenuSub>
+                              {p.tasks && p.tasks.length > 0 ? p.tasks.map((task) => (
+                                <SidebarMenuSubItem key={task.id}>
+                                  <SidebarMenuSubButton asChild>
+                                    <Link href={isAuthenticated ? (`/dashboard/review?projectId=${p.id}#task-${task.id}`) : "/auth/sign-in"} className="flex items-center w-full">
+                                      <span className="flex-shrink-0 group-data-[state=collapsed]:mx-auto flex items-center gap-2">
+                                        {getPriorityIcon(task.priority)}
+                                        <span className={`inline-block h-2 w-2 rounded-full ${getStatusDotClass(task.status)}`} aria-hidden="true" />
+                                      </span>
+                                      <span className="ml-2 truncate">{task.title || task.name || 'Untitled Task'}</span>
+                                    </Link>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              )) : (
+                                <SidebarMenuSubItem>
+                                  <div className="px-2 text-xs text-muted-foreground">No tasks</div>
+                                </SidebarMenuSubItem>
+                              )}
+                            </SidebarMenuSub>
                           </CollapsibleContent>
-                        </SidebarMenuItem>
-                      </Collapsible>
+                        </Collapsible>
+                      </SidebarMenuSubItem>
                     ))}
-                  </SidebarMenu>
+                  </SidebarMenuSub>
                 </CollapsibleContent>
               </Collapsible>
             </SidebarMenuItem>
 
-            {/* Test dropdown: Completed-test */}
+            {/* Completed group */}
             <SidebarMenuItem>
-              <Collapsible open={!!completedGroupOpen} onOpenChange={setCompletedGroupOpen} className="w-full">
-                <SidebarMenuButton asChild>
-                  <div className="flex items-center w-full">
-                    <Link href="#" className="flex items-center w-full">
-                      <span className="flex-shrink-0 group-data-[state=collapsed]:mx-auto"><CheckSquare className="h-5 w-5" /></span>
-                      <span className="ml-2 group-data-[state=collapsed]:hidden">Completed-test</span>
+              <Collapsible open={completedGroupOpen} onOpenChange={setCompletedGroupOpen}>
+                <div className="relative">
+                  <SidebarMenuButton asChild>
+                    <Link href={isAuthenticated ? "/dashboard?tab=completed" : "/auth/sign-in"} className="flex items-center w-full">
+                      <span className="flex-shrink-0 group-data-[state=collapsed]:mx-auto">
+                        <ClipboardCheck className="h-4 w-4" />
+                      </span>
+                      <span className="ml-2 transition-all duration-200 ease-in-out group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:w-0 group-data-[state=collapsed]:overflow-hidden">Completed</span>
                     </Link>
-                    <CollapsibleTrigger asChild>
-                      <SidebarMenuAction className="ml-2"><ChevronRight /></SidebarMenuAction>
-                    </CollapsibleTrigger>
-                  </div>
-                </SidebarMenuButton>
-                <CollapsibleContent className="group-data-[state=collapsed]:absolute group-data-[state=collapsed]:left-14 group-data-[state=collapsed]:top-2 group-data-[state=collapsed]:z-50 group-data-[state=collapsed]:w-64">
-                  <SidebarMenu>
-                    {completedProjects.map((project) => (
-                      <Collapsible key={`completed-test-${project.id}`} open={!!openProjects[project.id]} onOpenChange={(isOpen) => setOpenProjects((prev) => ({ ...prev, [project.id]: isOpen }))} className="w-full">
-                        <SidebarMenuItem>
-                          <div className="flex items-center w-full">
-                            <SidebarMenuButton asChild>
-                            <Link href={`/dashboard/projects/${project.id}`} className="flex items-center w-full" onClick={(e) => e.stopPropagation()}>
-                                <span className="flex-shrink-0"><div className="w-6 h-6 rounded-full flex items-center justify-center">{getPriorityIcon(project.priority)}</div></span>
-                                <span className="ml-2 truncate text-sm font-medium">{project.name}</span>
+                  </SidebarMenuButton>
+
+                  <SidebarMenuAction aria-expanded={completedGroupOpen} onClick={(e) => { e.stopPropagation(); setCompletedGroupOpen((s) => !s); }}>
+                    {completedGroupOpen ? (
+                      <ChevronDown className="size-4 transition-transform" />
+                    ) : (
+                      <ChevronRight className="size-4 transition-transform" />
+                    )}
+                  </SidebarMenuAction>
+                </div>
+
+                <CollapsibleContent>
+                  <SidebarMenuSub>
+                    {completedProjects.map((p) => (
+                      <SidebarMenuSubItem key={p.id}>
+                        <Collapsible open={!!openProjects[p.id]} onOpenChange={(val) => setOpenProjects((prev) => ({ ...prev, [p.id]: val }))}>
+                          <div className="relative">
+                            <SidebarMenuSubButton asChild>
+                              <Link href={isAuthenticated ? `/dashboard/completed/${p.id}` : "/auth-sign-in"} className="flex items-center w-full">
+                                <span className="flex-shrink-0 group-data-[state=collapsed]:mx-auto">
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="cursor-help inline-flex items-center">
+                                        <Calendar className="h-4 w-4" />
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent sideOffset={4}>{getProjectTooltipText(p, true)}</TooltipContent>
+                                  </Tooltip>
+                                </span>
+                                <span className="ml-2 truncate">{p.name}</span>
                               </Link>
-                            </SidebarMenuButton>
-                            <CollapsibleTrigger asChild>
-                              <SidebarMenuAction className="ml-2"><ChevronRight /></SidebarMenuAction>
-                            </CollapsibleTrigger>
+                            </SidebarMenuSubButton>
+
+                            <SidebarMenuAction aria-expanded={!!openProjects[p.id]} onClick={(e) => { e.stopPropagation(); setOpenProjects((prev) => ({ ...prev, [p.id]: !prev[p.id] })); }}>
+                              {openProjects[p.id] ? (
+                                <ChevronDown className="size-4 transition-transform" />
+                              ) : (
+                                <ChevronRight className="size-4 transition-transform" />
+                              )}
+                            </SidebarMenuAction>
                           </div>
+
                           <CollapsibleContent>
-                            { (project.tasks || []).length > 0 ? (
-                              <SidebarMenuSub>
-                                {(project.tasks || []).filter((t: Task) => (t.status === 'Done' || t.status === 'Completed')).map((task: Task) => (
-                                  <SidebarMenuSubItem key={`completed-test-task-${task.id}`}>
-                                    <SidebarMenuSubButton asChild>
-                                      <Link href={task.url || `/dashboard/projects/${project.id}#task-${task.id}`} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-sidebar-accent transition-colors w-full">
-                                        <span className={
-                                          `inline-block w-2 h-2 rounded-full shrink-0 ` +
-                                          (task.status === "Done" || task.status === "Completed"
-                                            ? "bg-green-500"
-                                            : task.status === "In Progress"
-                                            ? "bg-blue-500"
-                                            : "bg-gray-400")
-                                        } />
-                                        <span className="truncate flex-1 text-sm">{task.title}</span>
-                                        <Badge className={task.priority === 'High' ? 'bg-red-100 text-red-700' : task.priority === 'Medium' ? 'bg-yellow-50 text-yellow-700' : 'bg-gray-100 text-gray-700'}>
-                                          {task.priority}
-                                        </Badge>
-                                      </Link>
-                                    </SidebarMenuSubButton>
-                                  </SidebarMenuSubItem>
-                                ))}
-                              </SidebarMenuSub>
-                            ) : (
-                              <div className="px-4 py-2 text-xs text-muted-foreground">No tasks</div>
-                            )}
+                            <SidebarMenuSub>
+                              {p.tasks && p.tasks.length > 0 ? p.tasks.map((task) => (
+                                <SidebarMenuSubItem key={task.id}>
+                                  <SidebarMenuSubButton asChild>
+                                    <Link href={isAuthenticated ? (`/dashboard/completed/${p.id}#task-${task.id}`) : "/auth-sign-in"} className="flex items-center w-full">
+                                      <span className="flex-shrink-0 group-data-[state=collapsed]:mx-auto flex items-center gap-2">
+                                        {getPriorityIcon(task.priority)}
+                                        <span className={`inline-block h-2 w-2 rounded-full ${getStatusDotClass(task.status)}`} aria-hidden="true" />
+                                      </span>
+                                      <span className="ml-2 truncate">{task.title || task.name || 'Untitled Task'}</span>
+                                    </Link>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              )) : (
+                                <SidebarMenuSubItem>
+                                  <div className="px-2 text-xs text-muted-foreground">No tasks</div>
+                                </SidebarMenuSubItem>
+                              )}
+                            </SidebarMenuSub>
                           </CollapsibleContent>
-                        </SidebarMenuItem>
-                      </Collapsible>
+                        </Collapsible>
+                      </SidebarMenuSubItem>
                     ))}
-                  </SidebarMenu>
+                  </SidebarMenuSub>
                 </CollapsibleContent>
               </Collapsible>
+            </SidebarMenuItem>
+            {/* Resources group */}
+            <SidebarMenuItem>
+              <SidebarGroupLabel className="mt-2">Resources</SidebarGroupLabel>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <Link href="/info" className="flex items-center w-full">
+                      <span className="flex-shrink-0 group-data-[state=collapsed]:mx-auto">
+                        <BadgeQuestionMark className="h-4 w-4" />
+                      </span>
+                      <span className="ml-2 transition-all duration-200 ease-in-out group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:w-0 group-data-[state=collapsed]:overflow-hidden">Help</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <a href="https://github.com/diegoforrest/taskhive-management-tool" target="_blank" rel="noopener noreferrer" className="flex items-center w-full">
+                      <span className="flex-shrink-0 group-data-[state=collapsed]:mx-auto">
+                        <Github className="h-4 w-4" />
+                      </span>
+                      <span className="ml-2 transition-all duration-200 ease-in-out group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:w-0 group-data-[state=collapsed]:overflow-hidden">Source Code</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
 
-        {/* Projects Navigation Group - Show all projects as dropdowns with tasks */}
-        {isAuthenticated && (
-          <Collapsible open={projectsGroupOpen} onOpenChange={setProjectsGroupOpen} className="w-full">
-            <SidebarGroup>
-              <SidebarGroupLabel asChild>
-                <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer select-none pr-2 group">
-                  <div className="flex items-center gap-2">
-                    <FolderOpen className="h-6 w-6 text-muted-foreground" />
-                    <span className="font-semibold">Projects</span>
-                  </div>
-                  <ChevronDown className="ml-2 h-5 w-5 text-muted-foreground transition-transform duration-300 ease-in-out -rotate-90 group-data-[state=open]:rotate-0" />
-                </CollapsibleTrigger>
-              </SidebarGroupLabel>
-              <CollapsibleContent>
-                <SidebarMenu>
-                  {loading ? (
-                    <SidebarMenuItem>
-                      <SidebarMenuButton disabled>
-                        <span>Loading...</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ) : userProjects.length === 0 ? (
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <Link href="/dashboard/projects/new" className="text-muted-foreground">
-                          <Plus />
-                          <span>Create your first project</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    ) : (
-                    otherProjects.map((project) => (
-                      <Collapsible
-                        key={project.id}
-                        className="w-full"
-                        open={!!openProjects[project.id]}
-                        onOpenChange={(isOpen) => setOpenProjects((prev) => ({ ...prev, [project.id]: isOpen }))}
-                      >
-                        <SidebarMenuItem>
-                          <div className="flex items-center w-full">
-                            <SidebarMenuButton asChild tooltip={project.name} className="flex-1">
-                              <Link href={project.url} className="flex items-center w-full">
-                                <div className="flex items-center gap-2 truncate">
-                                  {/* Neutral circular project icon (no colored background) */}
-                                  <div className="w-6 h-6 rounded-full bg-transparent flex items-center justify-center mr-2 flex-shrink-0 text-sm">
-                                    {getPriorityIcon(project.priority)}
-                                  </div>
-                                  {/* Project title */}
-                                  <span className="truncate text-sm font-medium">{project.name}</span>
-                                </div>
 
-                                {/* project-level priority removed here; tasks keep priority */}
-                              </Link>
-                            </SidebarMenuButton>
-
-                            {/* Dropdown Toggle - Always show for projects, even if no tasks */}
-                            <CollapsibleTrigger asChild>
-                              <SidebarMenuAction className="data-[state=open]:rotate-90 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ml-2">
-                                <ChevronRight />
-                                <span className="sr-only">Toggle {project.name} tasks</span>
-                              </SidebarMenuAction>
-                            </CollapsibleTrigger>
-                          </div>
-
-                          {/* Tasks under each project */}
-                          <CollapsibleContent>
-                            { (project.tasks || []).length > 0 ? (
-                              <SidebarMenuSub>
-                                {(project.tasks || []).map((task: Task) => (
-                                  <SidebarMenuSubItem key={task.id}>
-                                    <SidebarMenuSubButton asChild>
-                                      <Link href={task.url || `/dashboard/projects/${project.id}#task-${task.id}`} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-sidebar-accent transition-colors w-full">
-                                        {/* Status small color dot */}
-                                        <span
-                                          title={task.status}
-                                          className={
-                                            `inline-block w-2 h-2 rounded-full shrink-0 ` +
-                                            (task.status === "Done" || task.status === "Completed"
-                                              ? "bg-green-500"
-                                              : task.status === "In Progress"
-                                              ? "bg-blue-500"
-                                              : "bg-gray-400")
-                                          }
-                                        />
-
-                                        {/* Task title */}
-                                        <span className="truncate flex-1 text-sm">{task.title}</span>
-
-                                        {/* Priority pill (shadcn Badge) */}
-                                        <Badge className={
-                                          task.priority === 'High' ? 'bg-red-100 text-red-700' : task.priority === 'Medium' ? 'bg-yellow-50 text-yellow-700' : 'bg-gray-100 text-gray-700'
-                                        }>
-                                          {task.priority === 'High' && '🔥 '}
-                                          {task.priority === 'Medium' && '⚡ '}
-                                          {task.priority === 'Low' && '🌱 '}
-                                          {task.priority}
-                                        </Badge>
-                                      </Link>
-                                    </SidebarMenuSubButton>
-                                  </SidebarMenuSubItem>
-                                ))}
-                              </SidebarMenuSub>
-                            ) : (
-                              <div className="px-4 py-2 text-xs text-muted-foreground">No tasks</div>
-                            )}
-                          </CollapsibleContent>
-                        </SidebarMenuItem>
-                      </Collapsible>
-                    ))
-                  )}
-                </SidebarMenu>
-              </CollapsibleContent>
-            </SidebarGroup>
-          </Collapsible>
-        )}
-
-        {/* Review Navigation Group - like Projects but always visible (shows message when empty) */}
-        {isAuthenticated && (
-          <Collapsible open={reviewGroupOpen} onOpenChange={setReviewGroupOpen} className="w-full">
-            <SidebarGroup>
-              <SidebarGroupLabel asChild>
-                <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer select-none pr-2 group">
-                  <div className="flex items-center gap-2">
-                    <ClipboardCheck className="h-6 w-6 text-muted-foreground" />
-                    <span className="font-semibold">Reviews</span>
-                  </div>
-                  <ChevronDown className="ml-2 h-5 w-5 text-muted-foreground transition-transform duration-300 ease-in-out -rotate-90 group-data-[state=open]:rotate-0" />
-                </CollapsibleTrigger>
-              </SidebarGroupLabel>
-              <CollapsibleContent>
-                <SidebarMenu>
-                  {reviewProjects.length === 0 ? (
-                    <SidebarMenuItem key="no-review">
-                      <SidebarMenuButton asChild>
-                        <Link href="/dashboard/review" className="text-muted-foreground flex items-center gap-2">
-                          <ClipboardCheck className="mr-2 h-4 w-4" />
-                          <span className="text-sm">No projects in review</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ) : (
-                  reviewProjects.map((project) => (
-                    <Collapsible
-                      key={`review-${project.id}`}
-                      className="w-full"
-                      open={!!openProjects[project.id]}
-                      onOpenChange={(isOpen) => setOpenProjects((prev) => ({ ...prev, [project.id]: isOpen }))}
-                    >
-                      <SidebarMenuItem>
-                        <div className="flex items-center w-full">
-                            <SidebarMenuButton asChild tooltip={project.name} className="flex-1">
-                            <Link href={`/dashboard/review?projectId=${project.id}`} className="flex items-center w-full">
-                              <div className="flex items-center gap-2 truncate">
-                                <div className="w-6 h-6 rounded-full bg-transparent flex items-center justify-center mr-2 flex-shrink-0 text-sm">
-                                  {getPriorityIcon(project.priority)}
-                                </div>
-                                <span className="truncate text-sm font-medium">{project.name}</span>
-                              </div>
-                            </Link>
-                          </SidebarMenuButton>
-
-                          <CollapsibleTrigger asChild>
-                            <SidebarMenuAction className="data-[state=open]:rotate-90 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ml-2 transform transition-transform duration-200">
-                              <ChevronRight />
-                              <span className="sr-only">Toggle {project.name} tasks</span>
-                            </SidebarMenuAction>
-                          </CollapsibleTrigger>
-                        </div>
-
-                        <CollapsibleContent>
-                          { (project.tasks || []).length > 0 ? (
-                            <SidebarMenuSub>
-                              {(project.tasks || []).map((task: Task) => (
-                                <SidebarMenuSubItem key={`review-task-${task.id}`}>
-                                  <SidebarMenuSubButton asChild>
-                                    <Link href={task.url || `/dashboard/review?projectId=${project.id}#task-${task.id}`} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-sidebar-accent transition-colors w-full">
-                                      <span
-                                        title={task.status}
-                                        className={
-                                          `inline-block w-2 h-2 rounded-full shrink-0 ` +
-                                          (task.status === "Done" || task.status === "Completed"
-                                            ? "bg-green-500"
-                                            : task.status === "In Progress"
-                                            ? "bg-blue-500"
-                                            : "bg-gray-400")
-                                        }
-                                      />
-                                      <span className="truncate flex-1 text-sm">{task.title}</span>
-                                      <Badge className={
-                                        task.priority === 'High' ? 'bg-red-100 text-red-700' : task.priority === 'Medium' ? 'bg-yellow-50 text-yellow-700' : 'bg-gray-100 text-gray-700'
-                                      }>
-                                        {task.priority === 'High' && '🔥 '}
-                                        {task.priority === 'Medium' && '⚡ '}
-                                        {task.priority === 'Low' && '🌱 '}
-                                        {task.priority}
-                                      </Badge>
-                                    </Link>
-                                  </SidebarMenuSubButton>
-                                </SidebarMenuSubItem>
-                              ))}
-                            </SidebarMenuSub>
-                          ) : (
-                            <div className="px-4 py-2 text-xs text-muted-foreground">No tasks</div>
-                          )}
-                        </CollapsibleContent>
-                      </SidebarMenuItem>
-                    </Collapsible>
-                  ))) }
-                </SidebarMenu>
-              </CollapsibleContent>
-            </SidebarGroup>
-          </Collapsible>
-        )}
-        
-        {/* Completed Navigation Group - shows projects marked Completed */}
-        {isAuthenticated && (
-          <Collapsible open={completedGroupOpen} onOpenChange={setCompletedGroupOpen} className="w-full mt-2">
-            <SidebarGroup>
-              <SidebarGroupLabel asChild>
-                <CollapsibleTrigger className="flex items-center justify-between w-full cursor-pointer select-none pr-2 group">
-                  <div className="flex items-center gap-2">
-                    <CheckSquare className="h-6 w-6 text-muted-foreground" />
-                    <span className="font-semibold">Completed</span>
-                  </div>
-                  <ChevronDown className="ml-2 h-5 w-5 text-muted-foreground transition-transform duration-300 ease-in-out -rotate-90 group-data-[state=open]:rotate-0" />
-                </CollapsibleTrigger>
-              </SidebarGroupLabel>
-              <CollapsibleContent>
-                <SidebarMenu>
-                  {completedProjects.length === 0 ? (
-                    <SidebarMenuItem key="no-completed">
-                      <SidebarMenuButton asChild>
-                        <Link href="/dashboard/completed" className="text-muted-foreground flex items-center gap-2">
-                          <CheckSquare className="mr-2 h-4 w-4" />
-                          <span className="text-sm">No completed projects</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ) : (
-                  completedProjects.map((project) => (
-                    <Collapsible
-                      key={`completed-${project.id}`}
-                      className="w-full"
-                      open={!!openProjects[project.id]}
-                      onOpenChange={(isOpen) => setOpenProjects((prev) => ({ ...prev, [project.id]: isOpen }))}
-                    >
-                      <SidebarMenuItem>
-                        <div className="flex items-center w-full">
-                            <SidebarMenuButton asChild tooltip={project.name} className="flex-1">
-                            <Link href={`/dashboard/projects/${project.id}`} className="flex items-center w-full">
-                              <div className="flex items-center gap-2 truncate">
-                                <div className="w-6 h-6 rounded-full bg-transparent flex items-center justify-center mr-2 flex-shrink-0 text-sm">
-                                  {getPriorityIcon(project.priority)}
-                                </div>
-                                <span className="truncate text-sm font-medium">{project.name}</span>
-                              </div>
-                            </Link>
-                          </SidebarMenuButton>
-
-                          <CollapsibleTrigger asChild>
-                            <SidebarMenuAction className="data-[state=open]:rotate-90 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ml-2">
-                              <ChevronRight />
-                              <span className="sr-only">Toggle {project.name} tasks</span>
-                            </SidebarMenuAction>
-                          </CollapsibleTrigger>
-                        </div>
-
-                        <CollapsibleContent>
-                          { (project.tasks || []).length > 0 ? (
-                            <SidebarMenuSub>
-                              {(project.tasks || []).filter((t: Task) => (t.status === 'Done' || t.status === 'Completed')).map((task: Task) => (
-                                <SidebarMenuSubItem key={`completed-task-${task.id}`}>
-                                  <SidebarMenuSubButton asChild>
-                                    <Link href={task.url || `/dashboard/projects/${project.id}#task-${task.id}`} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-sidebar-accent transition-colors w-full">
-                                      <span
-                                        title={task.status}
-                                        className={
-                                          `inline-block w-2 h-2 rounded-full shrink-0 ` +
-                                          (task.status === "Done" || task.status === "Completed"
-                                            ? "bg-green-500"
-                                            : task.status === "In Progress"
-                                            ? "bg-blue-500"
-                                            : "bg-gray-400")
-                                        }
-                                      />
-                                      <span className="truncate flex-1 text-sm">{task.title}</span>
-                                      <Badge className={
-                                        task.priority === 'High' ? 'bg-red-100 text-red-700' : task.priority === 'Medium' ? 'bg-yellow-50 text-yellow-700' : 'bg-gray-100 text-gray-700'
-                                      }>
-                                        {task.priority === 'High' && '🔥 '}
-                                        {task.priority === 'Medium' && '⚡ '}
-                                        {task.priority === 'Low' && '🌱 '}
-                                        {task.priority}
-                                      </Badge>
-                                    </Link>
-                                  </SidebarMenuSubButton>
-                                </SidebarMenuSubItem>
-                              ))}
-                            </SidebarMenuSub>
-                          ) : (
-                            <div className="px-4 py-2 text-xs text-muted-foreground">No completed tasks</div>
-                          )}
-                        </CollapsibleContent>
-                      </SidebarMenuItem>
-                    </Collapsible>
-                  ))) }
-                </SidebarMenu>
-              </CollapsibleContent>
-            </SidebarGroup>
-          </Collapsible>
-        )}
-        
        
       </SidebarContent>
       <SidebarFooter>
@@ -954,17 +649,19 @@ export function AppSidebar() {
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
                   size="lg"
-                  className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                  className="group data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
-                                    <Image
-                    src="/bee.png"
-                    alt="User Avatar"
-                    width={32}
-                    height={32}
-                    className="rounded-lg transition-all group-data-[state=collapsed]:mx-auto group-data-[state=collapsed]:block"
-                  />
+                                    <div className="w-10 h-10 transition-all duration-200 ease-in-out group-data-[state=collapsed]:w-8 group-data-[state=collapsed]:h-8 flex-shrink-0 flex items-center justify-center">
+                                      <Image
+                                        src="/bee.png"
+                                        alt="User Avatar"
+                                        width={40}
+                                        height={40}
+                                        className="rounded-lg w-full h-full object-cover transition-all duration-200 ease-in-out"
+                                      />
+                                    </div>
 
-                  <div className="grid flex-1 text-left text-sm leading-tight group-data-[state=collapsed]:hidden">
+                  <div className="grid flex-1 text-left text-sm leading-tight transition-all duration-200 ease-in-out group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:w-0 group-data-[state=collapsed]:overflow-hidden">
                     <span className="truncate font-semibold">
                       {isAuthenticated ? getUserDisplayName() : 'Guest'}
                     </span>
@@ -974,7 +671,7 @@ export function AppSidebar() {
                   </div>
 
                   {/* Chevron (hidden when collapsed) */}
-                  <ChevronUp className="ml-auto size-4 group-data-[state=collapsed]:hidden" />
+                  <ChevronUp className="ml-auto size-4 transition-all duration-200 ease-in-out group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:w-0 group-data-[state=collapsed]:overflow-hidden" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent
@@ -1018,4 +715,37 @@ export function AppSidebar() {
       <SidebarRail />
     </Sidebar>
   )
+}
+
+// Map task status to a small dot color class
+const getStatusDotClass = (status?: string) => {
+  const s = status?.toString().toLowerCase().trim() || ''
+  if (s === 'done' || s === 'completed' || s.includes('done') || s.includes('completed')) return 'bg-green-500'
+  if (s === 'in progress' || s === 'inprogress' || s === 'in_progress' || s.includes('progress') || s === 'started' || s === 'ongoing') return 'bg-blue-500'
+  // default: todo/unknown
+  return 'bg-gray-400'
+}
+
+// Format project date for tooltip display
+const formatProjectDate = (raw?: string | undefined) => {
+  if (!raw) return 'No date'
+  try {
+    const d = new Date(raw)
+    if (Number.isNaN(d.getTime())) return 'No date'
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  } catch (e) {
+    return 'No date'
+  }
+}
+
+// Get the tooltip text for a project depending on context
+const getProjectTooltipText = (p: SidebarProject, completed = false) => {
+  if (completed) {
+    // Prefer updatedAt as completed timestamp, fallback to createdAt or due_date
+    const d = formatProjectDate((p as any).updatedAt ?? (p as any).createdAt ?? p.due_date)
+    return `Completed ${d}`
+  }
+  // For active/review projects show due date primarily
+  const d = formatProjectDate(p.due_date ?? (p as any).updatedAt ?? (p as any).createdAt)
+  return `Due ${d}`
 }

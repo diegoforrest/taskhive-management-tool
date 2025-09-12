@@ -39,28 +39,38 @@ export type ApiResponse<T = unknown> = {
   message?: string
 } | T
 
-// Utility function to make HTTP requests
-const apiRequest = async (endpoint: string, options: RequestInit = {}): Promise<ApiResponse<unknown>> => {
-  const url = `${API_BASE_URL}${endpoint}`;
-  const config: RequestInit = {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-    ...options,
-  };
+import axios, { AxiosInstance } from 'axios';
 
+// Create axios instance with baseURL and sensible defaults
+const axiosInstance: AxiosInstance = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 10000, // 10s timeout
+  headers: {
+    'Content-Type': 'application/json',
+  }
+});
+
+// Utility wrapper to call axios and normalize responses to ApiResponse<T>
+const apiRequest = async (endpoint: string, options: { method?: string; data?: unknown; params?: Record<string, unknown>; headers?: Record<string, string> } = {}): Promise<ApiResponse<unknown>> => {
   try {
-    const response = await fetch(url, config);
-  const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.message || `HTTP error! status: ${response.status}`);
+    const method = (options.method || 'GET').toUpperCase();
+    const res = await axiosInstance.request({
+      url: endpoint,
+      method,
+      data: options.data,
+      params: options.params,
+      headers: options.headers,
+    });
+
+    // axios already parses JSON
+    return res.data as ApiResponse<unknown>;
+  } catch (error: any) {
+    // Normalize error for callers
+    console.error('API Request Error:', error?.message || error);
+    if (error?.response && error.response.data) {
+      // Backend returned structured error
+      throw error.response.data;
     }
-    
-  return data as ApiResponse<unknown>;
-  } catch (error) {
-    console.error('API Request Error:', error);
     throw error;
   }
 };
@@ -72,7 +82,7 @@ export const authApi = {
     
     return (await apiRequest('/testlogin', {
       method: 'POST',
-      body: JSON.stringify(credentials),
+      data: credentials,
     })) as LoginResponse;
   },
 
@@ -81,7 +91,7 @@ export const authApi = {
     
     return (await apiRequest('/test01/create_member', {
       method: 'POST',
-      body: JSON.stringify(userData),
+      data: userData,
     })) as RegisterResponse;
   },
 
@@ -94,7 +104,7 @@ export const authApi = {
     
     const res = await apiRequest('/test02/create_project', {
       method: 'POST',
-      body: JSON.stringify(projectData),
+      data: projectData,
     }) as ApiResponse<Project>;
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('projectCreated'))
@@ -122,7 +132,7 @@ export const authApi = {
     
     const res = await apiRequest(`/test04/update_project/${projectId}`, {
       method: 'POST',
-      body: JSON.stringify(updateData),
+      data: updateData,
     }) as ApiResponse<Project>;
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('projectUpdated'))
@@ -185,7 +195,7 @@ export const authApi = {
     
     const res = await apiRequest('/test05/create_task', {
       method: 'POST',
-      body: JSON.stringify(taskData),
+      data: taskData,
     }) as ApiResponse<Task>;
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('taskCreated'))
@@ -227,7 +237,7 @@ export const authApi = {
     
     const res = await apiRequest(`/test08/update_task/${taskId}`, {
       method: 'POST',
-      body: JSON.stringify(updateData),
+      data: updateData,
     }) as ApiResponse<Task>;
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('taskUpdated'))
@@ -499,7 +509,7 @@ export const tasksApi = {
       if (typeof projectId === 'number') payload.project_id = projectId;
       const res = await apiRequest('/test10/create_changelog', {
         method: 'POST',
-        body: JSON.stringify(payload),
+        data: payload,
       });
       return res;
     } catch (e) {
