@@ -146,7 +146,7 @@ function LandingPageContent() {
               Get Started
             </a>
             <a
-              href="/learn-more"
+              href="/info"
               className={`rounded-full border border-foreground text-foreground font-semibold px-6 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center justify-center button-base`}
             >
               Learn More

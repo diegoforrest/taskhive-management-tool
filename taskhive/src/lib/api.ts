@@ -50,6 +50,33 @@ const axiosInstance: AxiosInstance = axios.create({
   }
 });
 
+// Centralized response/error interceptor to normalize errors across the app.
+axiosInstance.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // If backend returned structured JSON, prefer that
+    if (error && error.response) {
+      const { status, data } = error.response;
+      // If body is HTML (some servers return HTML error pages), normalize it
+      if (typeof data === 'string' && data.toLowerCase().includes('<html')) {
+        return Promise.reject({ message: 'Server error — please try again later.', status });
+      }
+      // If data has message or error fields, use them
+      if (data && (data.message || data.error)) {
+        return Promise.reject({ message: data.message || data.error, data, status });
+      }
+      // Fallback: if there's a status code, give a friendly message
+      if (status >= 500) {
+        return Promise.reject({ message: 'Server error — please try again later.', data, status });
+      }
+      return Promise.reject({ message: (data && data.message) || JSON.stringify(data) || 'Request failed', data, status });
+    }
+
+    // Network/unknown error
+    return Promise.reject({ message: error?.message || 'Network error' });
+  }
+);
+
 // Utility wrapper to call axios and normalize responses to ApiResponse<T>
 const apiRequest = async (endpoint: string, options: { method?: string; data?: unknown; params?: Record<string, unknown>; headers?: Record<string, string> } = {}): Promise<ApiResponse<unknown>> => {
   try {
@@ -181,6 +208,47 @@ export const authApi = {
     }
 
     throw new Error('Failed to fetch projects');
+  },
+
+  // Update user profile on the backend
+  updateUser: async (userId: number, updateData: { email?: string; firstName?: string; lastName?: string }) => {
+    console.log('Real API update user request:', userId, updateData)
+    const res = await apiRequest(`/test11/update_user/${userId}`, {
+      method: 'POST',
+      data: updateData,
+    })
+    return res
+  },
+
+  // Change password endpoint
+  changePassword: async (userId: number, currentPassword: string, newPassword: string) => {
+    console.log('Real API change password request for user:', userId)
+    const res = await apiRequest(`/test12/change_password/${userId}`, {
+      method: 'POST',
+      data: { currentPassword, newPassword },
+    })
+    return res
+  },
+
+  // Verify password without changing it
+  verifyPassword: async (userId: number, password: string) => {
+    console.log('Real API verify password request for user:', userId)
+    const res = await apiRequest(`/test13/verify_password/${userId}`, {
+      method: 'POST',
+      data: { password },
+    })
+    return res
+  },
+
+  // Request password reset (forgot password)
+  // NOTE: Assumes backend exposes POST /test14/forgot_password accepting { email }
+  requestPasswordReset: async (email: string) => {
+    console.log('Real API request password reset for:', email)
+    const res = await apiRequest(`/test14/forgot_password`, {
+      method: 'POST',
+      data: { email },
+    })
+    return res
   },
 
   createTask: async (taskData: {

@@ -146,4 +146,38 @@ export class AuthController {
     }
     return this.authService.deleteProject(numericId);
   }
+
+  // Update user profile (firstName, lastName, email)
+  @Post('test11/update_user/:id')
+  @HttpCode(HttpStatus.OK)
+  async updateUser(@Param('id') id: string, @Body() body: any) {
+    const numericId = parseInt(id, 10);
+    if (isNaN(numericId)) {
+      throw new Error('Invalid user id');
+    }
+    return this.authService.updateUser(numericId, body);
+  }
+
+  // Change password endpoint - verifies current password and updates to new password
+  @Post('test12/change_password/:id')
+  @HttpCode(HttpStatus.OK)
+  async changePassword(@Param('id') id: string, @Body() body: { currentPassword: string; newPassword: string }) {
+    const numericId = parseInt(id, 10);
+    if (isNaN(numericId)) {
+      throw new Error('Invalid user id');
+    }
+    const { currentPassword, newPassword } = body;
+    return this.authService.changePassword(numericId, currentPassword, newPassword);
+  }
+
+  // Verify password without changing it
+  @Post('test13/verify_password/:id')
+  @HttpCode(HttpStatus.OK)
+  async verifyPassword(@Param('id') id: string, @Body() body: { password: string }) {
+    const numericId = parseInt(id, 10);
+    if (isNaN(numericId)) {
+      throw new Error('Invalid user id');
+    }
+    return this.authService.verifyPassword(numericId, body.password);
+  }
 }

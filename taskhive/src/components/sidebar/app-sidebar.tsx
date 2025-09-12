@@ -5,7 +5,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
-import { ClipboardCheck, ChevronDown, ChevronRight, Calendar, FolderOpen, CheckSquare, ChevronUp, BadgeQuestionMark, Github, User2, Settings, LogOut, Target, Flame, Zap, Leaf } from "lucide-react"
+import { ClipboardCheck, ChevronDown, ChevronRight, Calendar, FolderOpen, CheckSquare, ChevronUp, BadgeQuestionMark, Github, User2, LogOut, Target, Flame, Zap, Leaf } from "lucide-react"
 
 import {
   Sidebar,
@@ -688,12 +688,7 @@ export function AppSidebar() {
                         Profile
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/settings">
-                        <Settings className="mr-2 size-4" />
-                        Settings
-                      </Link>
-                    </DropdownMenuItem>
+                    {/* Settings removed per request; only Profile and Sign out remain */}
                     <DropdownMenuItem onClick={handleLogout} className="text-red-600">
                       <LogOut className="mr-2 size-4" />
                       Sign out

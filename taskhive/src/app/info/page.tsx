@@ -40,10 +40,41 @@ export default function LearnMorePage() {
             <p className="text-muted-foreground text-center">Gain insights into your productivity with built-in analytics.</p>
           </div>
         </div>
-        <div className="flex justify-center mt-10">
-          <Link href="/" className="text-primary hover:underline">&larr; Back to Home</Link>
-        </div>
+        {/* Back link removed per request - single bottom button will be shown */}
       </main>
+      {/* Additional bottom section: Demo & Playground */}
+      <section className="w-full bg-muted/5 border-t mt-6">
+        <div className="max-w-5xl mx-auto px-4 py-12">
+          <h2 className="text-2xl font-semibold mb-3">Demo & Playground</h2>
+          <p className="text-muted-foreground mb-4">Try a lightweight demo of TaskHive features. This section is informational and can be extended into an interactive playground.</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-4">
+              <h3 className="font-medium">Search</h3>
+              <p className="text-sm text-muted-foreground">Search across projects and tasks from the main dashboard. Use the search bar in the top bar to quickly find items by title, due date, or priority.</p>
+            </div>
+
+            <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-4">
+              <h3 className="font-medium">Drag & Drop</h3>
+              <p className="text-sm text-muted-foreground">Move tasks between columns or projects using drag & drop in the Kanban board. Try dragging a task to a different column to update its status.</p>
+            </div>
+
+            <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-4">
+              <h3 className="font-medium">Priority Indicators</h3>
+              <p className="text-sm text-muted-foreground">Priority is shown with icons and colors: High (red / flame), Medium (yellow / zap), Low (green / leaf). Project headers also show a colored dot and badge.</p>
+            </div>
+
+            <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-4">
+              <h3 className="font-medium">Routing</h3>
+              <p className="text-sm text-muted-foreground">Project pages are under <code>/dashboard/projects/:id</code>. Review tasks open the Review tab with <code>?projectId=</code>. Completed projects use <code>/dashboard/completed/:id</code>.</p>
+            </div>
+          </div>
+
+          <div className="mt-6 text-center">
+            <Link href="/dashboard" className="inline-flex items-center justify-center px-4 py-2 bg-primary text-primary-foreground rounded-md shadow hover:opacity-90">Open Dashboard</Link>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

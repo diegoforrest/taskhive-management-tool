@@ -398,4 +398,67 @@ export class AuthService {
       throw new Error(`Failed to fetch changelogs: ${error.message}`);
     }
   }
+
+  // Update user profile fields
+  async updateUser(userId: number, updateData: Partial<{ email: string; firstName: string; lastName: string }>) {
+    try {
+      const user = await this.userRepository.findOne({ where: { user_id: userId } });
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      const fields: any = {};
+      if (updateData.email !== undefined) fields.email = updateData.email;
+      if (updateData.firstName !== undefined) fields.firstName = updateData.firstName;
+      if (updateData.lastName !== undefined) fields.lastName = updateData.lastName;
+
+      await this.userRepository.update(userId, fields);
+
+      const updated = await this.userRepository.findOne({ where: { user_id: userId } });
+      return { success: true, message: 'User updated', user: updated };
+    } catch (error) {
+      throw new Error(`Failed to update user: ${error.message}`);
+    }
+  }
+
+  // Change password - verifies current password then writes new hashed password
+  async changePassword(userId: number, currentPassword: string, newPassword: string) {
+    try {
+      const user = await this.userRepository.findOne({ where: { user_id: userId } });
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      const passwordMatches = await bcrypt.compare(currentPassword, user.password);
+      if (!passwordMatches) {
+        throw new UnauthorizedException('Current password is incorrect');
+      }
+
+      if (!newPassword || newPassword.length < 8) {
+        throw new Error('New password must be at least 8 characters');
+      }
+
+      const saltRounds = 12;
+      const hashed = await bcrypt.hash(newPassword, saltRounds);
+      await this.userRepository.update(userId, { password: hashed });
+
+      return { success: true, message: 'Password changed' };
+    } catch (error) {
+      throw new Error(`Failed to change password: ${error.message}`);
+    }
+  }
+
+  // Verify current password for a user (returns success true/false)
+  async verifyPassword(userId: number, password: string) {
+    try {
+      const user = await this.userRepository.findOne({ where: { user_id: userId } });
+      if (!user) {
+        throw new Error('User not found');
+      }
+      const matches = await bcrypt.compare(password, user.password);
+      return { success: true, valid: matches };
+    } catch (error) {
+      throw new Error(`Failed to verify password: ${error.message}`);
+    }
+  }
 }
