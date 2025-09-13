@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Clock, CheckCircle, XCircle, Pause, MessageSquare, Calendar, User, ArrowLeft, AlertCircle, Flame, Gauge, Leaf, PlayCircle } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Pause, MessageSquare, Calendar, User, ArrowLeft, Flame, Gauge, Leaf, PlayCircle } from 'lucide-react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { tasksApi, Task, authApi, Project } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { toast } from 'react-hot-toast';
 
 // Type definitions for Review System
 type ReviewAction = 'approve' | 'request_changes' | 'hold_discussion';
@@ -77,7 +78,7 @@ const extractDataArray = <T,>(res: unknown): T[] => {
 };
 
 // Map backend changelogs to UI review data with robust parsing for structured remark format
-const mapChangelogsToReview = (rows: ChangeLogEntry[], currentUser?: any) => {
+  const mapChangelogsToReview = (rows: ChangeLogEntry[], currentUser?: any) => {
   const deriveReviewerName = (r: ChangeLogEntry) => {
     // If the changelog provides a user id but no name, try to use the current user's first name
     if (r.user_id && currentUser) {
@@ -88,7 +89,7 @@ const mapChangelogsToReview = (rows: ChangeLogEntry[], currentUser?: any) => {
           if (maybeName.includes('@')) return maybeName.split('@')[0];
           return maybeName.split(' ')[0];
         }
-      } catch (e) {
+      } catch {
         // ignore and fallback
       }
     }
@@ -112,7 +113,7 @@ const mapChangelogsToReview = (rows: ChangeLogEntry[], currentUser?: any) => {
         if (typeof obj.changes === 'string' && obj.changes.trim().length > 0) parsedChangeDetails = obj.changes;
         return { parsedNotes: parsedNotes || '', parsedChangeDetails };
       }
-    } catch (e) {
+    } catch {
       // not JSON -> continue to legacy parsing
     }
 
@@ -240,7 +241,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
-  const [showToast, setShowToast] = useState<{ message: string; type?: 'success' | 'error' | 'info' } | null>(null);
+  // using react-hot-toast for toasts
   const [currentHistory, setCurrentHistory] = useState<ReviewNote[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [reviewFilter, setReviewFilter] = useState<'all' | 'approved' | 'pending' | 'changes_requested' | 'on_hold'>('all');
@@ -309,8 +310,8 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                 needsReview = mapped.needsReview;
                 lastReviewAction = mapped.lastReviewAction;
               }
-            } catch (e) {
-              console.warn('Failed to fetch changelogs for task', task.id, e);
+            } catch {
+              console.warn('Failed to fetch changelogs for task', task.id);
               // Keep default values if changelog fetch fails
             }
 
@@ -330,8 +331,8 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
               dueDate: (task.due_date || task.dueDate) as string | undefined
             } as TaskWithReviews);
           }
-        } catch (e) {
-          console.warn('Failed to fetch tasks for project', p.id, e);
+        } catch {
+          console.warn('Failed to fetch tasks for project', p.id);
         }
       }
 
@@ -363,16 +364,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
 
     setSubmitting(true);
     try {
-      const reviewPayload = {
-        reviewerId: String(user?.user_id || 'current-user'),
-        reviewerName: user?.email?.split('@')[0] || 'Current User',
-        action: selectedAction,
-        reviewType: 'general_review',
-        notes: reviewNotes.trim(),
-        changeDetails: selectedAction === 'request_changes' ? changeDetails.trim() : undefined,
-        timestamp: new Date().toISOString()
-      };
-
+      // Create appropriate changelog based on selected action
       if (selectedAction === 'request_changes') {
         await tasksApi.createChangelog(
           target.id,
@@ -402,32 +394,31 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
         );
       }
 
+      // Refresh the task list and history for the opened task
       await loadTasksForReview();
-
-      // Refresh history cache for this task
       try {
         const res = await tasksApi.getChangelogs(target.id);
         const rows = extractDataArray<ChangeLogEntry>(res);
         const mapped = mapChangelogsToReview(rows, user);
         setCurrentHistory(mapped.notes.map(n => ({ ...n, taskId: n.taskId || target.id })));
-      } catch (e) {
-        console.warn('Failed to refresh task history after submit:', e);
+      } catch {
+        // ignore refresh errors
       }
 
-      setShowToast({ message: 'Review submitted successfully', type: 'success' });
+      toast.success('Feedback Added');
 
-      // Reset form inputs but keep the review dialog open (user may submit multiple reviews)
+      // Reset inputs and close dialog
       setReviewNotes('');
       setChangeDetails('');
       setSelectedAction('approve');
+      setSelectedTaskForReview(null);
     } catch (error) {
       console.error('Failed to submit review:', error);
-      setShowToast({ message: 'Failed to submit review', type: 'error' });
+      toast.error('Failed to submit feedback');
     } finally {
       setSubmitting(false);
     }
   };
-
   const handleProjectApproval = async (projectId: number): Promise<boolean> => {
     try {
       console.log(`Approving entire project ${projectId}`);
@@ -439,8 +430,8 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
         try {
           // Update each task status to Done (backend may emit its own changelog; we still only add one project-level entry below)
           await tasksApi.updateTaskStatus(task.id, 'Done');
-        } catch (e) {
-          console.warn('Failed to update task status during project approval', task.id, e);
+        } catch {
+          console.warn('Failed to update task status during project approval', task.id);
         }
       }
 
@@ -458,7 +449,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
             if (u.email && typeof u.email === 'string') return u.email.split('@')[0];
             if (u.user_id || u.id) return `User ${u.user_id ?? u.id}`;
             return 'User';
-          } catch (e) {
+          } catch {
             return 'User';
           }
         })();
@@ -471,17 +462,17 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
           projectId,
           Number(user?.user_id ?? 1)
         );
-      } catch (e) {
-        console.warn('Failed to create project-level changelog during approval', e);
+      } catch {
+        console.warn('Failed to create project-level changelog during approval');
       }
 
       // Mark the project status as Completed in the backend
       try {
-        await authApi.updateProject(projectId, { status: 'Completed' });
-        setShowToast({ message: 'Project approved and marked Completed', type: 'success' });
-      } catch (e) {
-        console.warn('Failed to update project status to Completed', projectId, e);
-        setShowToast({ message: 'Failed to update project status', type: 'error' });
+  await authApi.updateProject(projectId, { status: 'Completed' });
+  toast.success('Project approved and marked Completed');
+      } catch {
+        console.warn('Failed to update project status to Completed', projectId);
+        toast.error('Failed to update project status');
         return false;
       }
 
@@ -490,7 +481,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
       return true;
     } catch (error) {
       console.error('Failed to approve project:', error);
-      setShowToast({ message: 'Failed to approve project', type: 'error' });
+      toast.error('Failed to approve project');
       return false;
     }
   };
@@ -513,8 +504,8 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
         const mapped = mapChangelogsToReview(rows, user);
         if (!mounted) return;
         setCurrentHistory(mapped.notes.map(n => ({ ...n, taskId: n.taskId || task.id })));
-      } catch (e) {
-        console.warn('Failed to load task history:', e);
+      } catch {
+        console.warn('Failed to load task history:');
         if (mounted) setCurrentHistory([]);
       }
     };
@@ -534,12 +525,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
   };
 
 
-  // Auto-hide toast
-  useEffect(() => {
-    if (!showToast) return;
-    const t = setTimeout(() => setShowToast(null), 3500);
-    return () => clearTimeout(t);
-  }, [showToast]);
+  // toasts are handled by react-hot-toast globally
 
   // no-op: keep `redirecting` only to drive the UI overlay
 
@@ -918,8 +904,8 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                             
                             setCurrentHistory(notes);
                             setSelectedTaskForHistory(task);
-                          } catch (e) {
-                            console.warn('Failed to fetch changelogs for task', task.id, e);
+                          } catch {
+                            console.warn('Failed to fetch changelogs for task', task.id);
                             setCurrentHistory([]);
                             setSelectedTaskForHistory(task);
                           }
@@ -1090,16 +1076,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
         </DialogContent>
       </Dialog>
 
-      {/* Toast */}
-      {showToast && (
-        <div className={`fixed bottom-6 right-6 z-50 max-w-xs p-3 rounded shadow-lg text-sm ${
-          showToast.type === 'success' ? 'bg-green-50 border border-green-200 text-green-800' : 
-          showToast.type === 'error' ? 'bg-red-50 border border-red-200 text-red-800' : 
-          'bg-gray-50 border border-gray-200 text-gray-800'
-        }`}>
-          <div className="font-medium">{showToast.message}</div>
-        </div>
-      )}
+      {/* react-hot-toast renders toasts via a Toaster in the app layout */}
     </div>
   );
 }

@@ -196,26 +196,10 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
   const [draggedItem, setDraggedItem] = useState<TaskWithReview | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>('');
-  const [errorCountdown, setErrorCountdown] = useState<number>(0);
+  // error UI replaced by react-hot-toast notifications
   const [projectData, setProjectData] = useState<Project | ProjectInfo | null>(null);
 
-  // Function to set error with countdown
-  const setErrorWithCountdown = useCallback((message: string) => {
-    setError(message);
-    setErrorCountdown(5);
-    
-    const timer = setInterval(() => {
-      setErrorCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          setError('');
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  }, []);
+  // Use react-hot-toast for transient error messaging instead of local error state
 
   const loadTasks = useCallback(async () => {
     if (!projectId) return;
@@ -261,8 +245,7 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
         'Done': enhancedTasks.filter((task) => task.status === 'Done'),
       };
       
-      setTasks(groupedTasks);
-      setError('');
+  setTasks(groupedTasks);
     } catch (err: unknown) {
       console.error('Failed to load tasks:', err);
       setTasks({
@@ -347,7 +330,7 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
 
   const addNewTask = useCallback(async (taskData: CreateTaskRequest): Promise<void> => {
     if (!projectId) {
-      setErrorWithCountdown('Project ID is required to create a task.');
+      toast.error('Project ID is required to create a task.', { position: 'top-center' });
       return;
     }
 
@@ -389,9 +372,9 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
       }
     } catch (error) {
       console.error('Failed to create task:', error);
-      setErrorWithCountdown('Failed to create task. Please try again.');
+      toast.error('Failed to create task. Please try again.', { position: 'top-center' });
     }
-  }, [projectId, setErrorWithCountdown]);
+  }, [projectId]);
 
   const deleteTask = useCallback(async (taskId: number): Promise<void> => {
     try {
@@ -412,9 +395,9 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
       }
     } catch (error) {
       console.error('Failed to delete task:', error);
-      setErrorWithCountdown('Failed to delete task. Please try again.');
+      toast.error('Failed to delete task. Please try again.', { position: 'top-center' });
     }
-  }, [setErrorWithCountdown]);
+  }, []);
 
   const updateTask = useCallback(async (updatedTask: TaskWithReview): Promise<void> => {
     try {
@@ -453,10 +436,10 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
       setSelectedItem(null);
     } catch (error) {
       console.error('Failed to update task:', error);
-      setErrorWithCountdown('Failed to update task. Please try again.');
+      toast.error('Failed to update task. Please try again.', { position: 'top-center' });
       loadTasksRef.current?.();
     }
-  }, [setErrorWithCountdown]);
+  }, []);
 
   const updateTaskStatus = useCallback(async (task: TaskWithReview, newStatus: string): Promise<void> => {
     const updatedTask = { ...task, status: newStatus as ItemStatus };
@@ -540,16 +523,7 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
         </Button>
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-3 sm:px-4 py-3 rounded text-sm">
-          <div className="flex justify-between items-center">
-            <span>{error}</span>
-            {errorCountdown > 0 && (
-              <span className="text-red-500 text-xs">({errorCountdown}s)</span>
-            )}
-          </div>
-        </div>
-      )}
+      {/* transient errors are shown via react-hot-toast */}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {columns.map((column) => {

@@ -21,8 +21,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false)
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   
-  const [notice, setNotice] = useState<string | null>(null)
-  const [noticeType, setNoticeType] = useState<'success' | 'error' | 'info'>('info')
+  // Use react-hot-toast for transient notices
   const original = { firstName: user?.firstName || "", lastName: user?.lastName || "", email: user?.email || "" }
 
   // Keep form fields in sync with the auth `user` when it becomes available (e.g., after refresh)
@@ -45,8 +44,7 @@ export default function ProfilePage() {
   }
 
   const handleSave = async () => {
-    setSaving(true)
-    setNotice(null)
+  setSaving(true)
     try {
       // Call backend to persist profile changes
       if (user && user.user_id) {
@@ -63,8 +61,7 @@ export default function ProfilePage() {
           toast.success('Profile saved locally (server response unexpected).', { position: 'top-center' })
         }
       } else {
-        setNotice('Not signed in')
-        setNoticeType('error')
+        toast.error('Not signed in', { position: 'top-center' })
       }
 
       // Optionally navigate back to dashboard
@@ -72,9 +69,8 @@ export default function ProfilePage() {
     } catch (err) {
       console.error('Failed to save profile:', err)
       const msg = extractErrorMessage(err)
-      setNotice(msg)
-      setNoticeType('error')
-  toast.error(msg, { position: 'top-center' })
+      // show inline notice and toast
+      toast.error(msg, { position: 'top-center' })
     } finally {
       setSaving(false)
     }
@@ -86,36 +82,26 @@ export default function ProfilePage() {
   const [changing, setChanging] = useState(false)
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
-  const [currentPasswordValid, setCurrentPasswordValid] = useState<boolean | null>(null)
 
   // Debounced verification of current password
   React.useEffect(() => {
     if (!user || !user.user_id) {
-      setCurrentPasswordValid(null)
       return
     }
 
     if (!currentPassword) {
-      setCurrentPasswordValid(null)
       return
     }
 
-    let cancelled = false
     const t = setTimeout(async () => {
       try {
-        const res = await authApi.verifyPassword(user.user_id, currentPassword)
-        if (!cancelled) {
-          setCurrentPasswordValid(!!(res && (res as any).valid))
-        }
-      } catch (err) {
-        if (!cancelled) setCurrentPasswordValid(false)
+        await authApi.verifyPassword(user.user_id, currentPassword)
+      } catch {
+        /* ignore verification errors */
       }
     }, 300)
 
-    return () => {
-      cancelled = true
-      clearTimeout(t)
-    }
+    return () => clearTimeout(t)
   }, [currentPassword, user])
 
   const handleChangePassword = async () => {
@@ -214,7 +200,7 @@ export default function ProfilePage() {
     // Fallback to generic
     try {
       return JSON.stringify(err)
-    } catch (e) {
+    } catch {
       return 'Server error'
     }
   }
@@ -265,11 +251,7 @@ export default function ProfilePage() {
           </Dialog>
         </div>
 
-        {notice && (
-          <div className={`mt-3 text-sm ${noticeType === 'error' ? 'text-red-600' : noticeType === 'success' ? 'text-green-600' : 'text-muted-foreground'}`}>
-            {notice}
-          </div>
-        )}
+        {/* Notices are handled by react-hot-toast via the TopBar Toaster */}
       </Card>
 
         {/* Toaster is provided globally in TopBar; profile triggers toasts with react-hot-toast */}
