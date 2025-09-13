@@ -12,14 +12,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ArrowLeft, Calendar, Target } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { authApi } from "@/lib/api";
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { toast } from 'react-hot-toast';
 
 export default function NewProjectPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -32,13 +30,13 @@ export default function NewProjectPage() {
     
     if (!user?.user_id) {
       console.error('No user or user_id found in auth context:', user);
-      setErrorMessage('You must be logged in to create a project. Please log in first.');
+      toast.error('You must be logged in to create a project. Please log in first.');
       router.push('/auth/sign-in');
       return;
     }
 
     if (!formData.name.trim()) {
-      setErrorMessage('Project name is required');
+      toast.error('Project name is required');
       return;
     }
 
@@ -57,14 +55,14 @@ export default function NewProjectPage() {
       numericUserId = user.user_id;
     } else {
       console.error('Invalid user_id type:', typeof user.user_id, user.user_id);
-      setErrorMessage('Invalid user ID format. Please log out and log back in.');
+      toast.error('Invalid user ID format. Please log out and log back in.');
       return;
     }
     
     // Validate the parsed number
     if (isNaN(numericUserId) || numericUserId <= 0) {
       console.error('Cannot convert user_id to valid number:', user.user_id, '-> NaN or invalid');
-      setErrorMessage(`Invalid user ID: "${user.user_id}". Please log out and log back in.`);
+      toast.error(`Invalid user ID: "${user.user_id}". Please log out and log back in.`);
       return;
     }
 
@@ -94,7 +92,7 @@ export default function NewProjectPage() {
       // Dispatch custom event to trigger sidebar refresh
       window.dispatchEvent(new CustomEvent('projectCreated', { detail: result }));
 
-      setSuccessMessage('Project created successfully!');
+      toast.success('Project created successfully!');
 
       // Small delay to ensure the project is saved and sidebar refreshes
       setTimeout(() => {
@@ -105,9 +103,9 @@ export default function NewProjectPage() {
       console.error("Error creating project:", error);
       // Show more detailed error message
       if (error instanceof Error) {
-        setErrorMessage(`Failed to create project: ${error.message}`);
+        toast.error(`Failed to create project: ${error.message}`);
       } else {
-        setErrorMessage("Failed to create project. Please try again.");
+        toast.error("Failed to create project. Please try again.");
       }
     } finally {
       setIsLoading(false);
@@ -118,14 +116,7 @@ export default function NewProjectPage() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  useEffect(() => {
-    if (!successMessage && !errorMessage) return;
-    const t = setTimeout(() => {
-      setSuccessMessage('');
-      setErrorMessage('');
-    }, 3500);
-    return () => clearTimeout(t);
-  }, [successMessage, errorMessage]);
+  // toasts handle their own lifecycle; no inline alerts needed
 
   return (
     <div className="min-h-screen bg-background">
@@ -148,16 +139,7 @@ export default function NewProjectPage() {
 
       {/* Form */}
       <div className="p-6 max-w-2xl mx-auto">
-        {successMessage && (
-          <Alert className="border-green-200 bg-green-50 text-green-800 mb-4">
-            <AlertDescription>{successMessage}</AlertDescription>
-          </Alert>
-        )}
-        {errorMessage && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertDescription>{errorMessage}</AlertDescription>
-          </Alert>
-        )}
+        {/* toasts will show success/error messages */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

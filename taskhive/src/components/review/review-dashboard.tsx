@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Clock, CheckCircle, XCircle, Pause, MessageSquare, Calendar, User, ArrowLeft, Flame, Gauge, Leaf, PlayCircle } from 'lucide-react';
@@ -243,6 +243,31 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
   const [redirecting, setRedirecting] = useState(false);
   // using react-hot-toast for toasts
   const [currentHistory, setCurrentHistory] = useState<ReviewNote[]>([]);
+  // Prevent dialogs from reopening during the refresh that happens after submitting feedback
+  const [suppressDialogOpen, setSuppressDialogOpen] = useState(false);
+  // remember which task we just submitted feedback for to avoid reopening its dialog
+  const justSubmittedRef = useRef<number | null>(null);
+
+  // Show a loading toast while redirecting (replaces the old overlay)
+  const redirectToastId = useRef<string | null>(null);
+  useEffect(() => {
+    if (redirecting) {
+      const id = toast.loading('Approving project, please wait...');
+      redirectToastId.current = String(id);
+    } else {
+      if (redirectToastId.current) {
+        try { toast.dismiss(redirectToastId.current as string | undefined); } catch {}
+        redirectToastId.current = null;
+      }
+    }
+
+    return () => {
+      if (redirectToastId.current) {
+        try { toast.dismiss(redirectToastId.current as string | undefined); } catch {}
+        redirectToastId.current = null;
+      }
+    };
+  }, [redirecting]);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [reviewFilter, setReviewFilter] = useState<'all' | 'approved' | 'pending' | 'changes_requested' | 'on_hold'>('all');
 
@@ -361,7 +386,9 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
   const handleReviewSubmit = async () => {
     const target = selectedTaskForReview;
     if (!target || !reviewNotes.trim()) return;
-
+  // remember the task and suppress re-opening dialog while we submit and refresh
+  justSubmittedRef.current = target.id;
+  setSuppressDialogOpen(true);
     setSubmitting(true);
     try {
       // Create appropriate changelog based on selected action
@@ -407,7 +434,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
 
       toast.success('Feedback Added');
 
-      // Reset inputs and close dialog
+  // Reset inputs and close dialog
       setReviewNotes('');
       setChangeDetails('');
       setSelectedAction('approve');
@@ -417,6 +444,11 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
       toast.error('Failed to submit feedback');
     } finally {
       setSubmitting(false);
+      // allow a short grace period before re-enabling dialog openings to avoid flicker
+      setTimeout(() => {
+        setSuppressDialogOpen(false);
+        justSubmittedRef.current = null;
+      }, 700);
     }
   };
   const handleProjectApproval = async (projectId: number): Promise<boolean> => {
@@ -674,16 +706,17 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                     <DialogTitle>Confirm Project Approval</DialogTitle>
                   </DialogHeader>
                   <p>Are you sure you want to approve this project and mark it as Completed? This will update all visible tasks and set the project status to Completed.</p>
-                  <div className="flex justify-end gap-2 mt-4">
-                    <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancel</Button>
+                    <div className="flex justify-end gap-2 mt-4">
+                    <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={submitting}>Cancel</Button>
                     <Button onClick={async () => {
-                      setConfirmOpen(false);
+                      // keep the dialog open while approval runs
                       setSubmitting(true);
                       try {
                         const ok = await handleProjectApproval(currentProject.id);
                         if (ok) {
-                          // show redirecting overlay and small delay so the success toast is visible before navigation
+                          // begin redirect flow and then close the dialog once the approval finished
                           setRedirecting(true);
+                          setConfirmOpen(false);
                           setTimeout(() => {
                             try {
                               router.replace(`/dashboard/completed/${currentProject.id}`);
@@ -696,8 +729,8 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                       } finally {
                         setSubmitting(false);
                       }
-                    }}>
-                      {submitting ? 'Approving...' : 'Confirm Approve'}
+                    }} disabled={submitting}>
+                      {submitting ? 'Approving project...' : 'Confirm Approve'}
                     </Button>
                   </div>
                 </DialogContent>
@@ -709,14 +742,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
 
       {/* Main Content */}
   <div className="space-y-6 p-4 lg:p-6 relative">
-        {redirecting && (
-          <div className="absolute inset-0 z-40 flex items-center justify-center">
-            <div className="relative z-50 w-full max-w-sm p-4 text-center">
-              <div className="mb-3 text-sm font-medium text-primary">Applying changes, preparing the page...</div>
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-            </div>
-          </div>
-        )}
+        {/* redirecting overlay removed - using toast for feedback instead */}
         {/* Page Header */}
         <div>
           {isProjectSpecific && currentProject ? (
@@ -916,6 +942,11 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
 
                         {/* Add Review Button */}
                         <Button size="sm" onClick={() => {
+                          if (suppressDialogOpen) {
+                            // prevent reopening while we just submitted feedback and refreshing
+                            toast('Please wait while changes are applied');
+                            return;
+                          }
                           setSelectedTaskForReview(task);
                           setReviewNotes('');
                           setChangeDetails('');
@@ -997,7 +1028,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
       </Dialog>
 
       {/* Review Dialog - submit reviews */}
-      <Dialog open={!!selectedTaskForReview} onOpenChange={(open) => {
+      <Dialog open={!!selectedTaskForReview && !suppressDialogOpen && selectedTaskForReview?.id !== justSubmittedRef.current} onOpenChange={(open) => {
         if (!open) {
           setSelectedTaskForReview(null);
           setReviewNotes('');
@@ -1061,7 +1092,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                   disabled={!reviewNotes.trim() || submitting}
                   className="flex-1"
                 >
-                  {submitting ? "Submitting..." : "Submit Review"}
+                  {submitting ? "Submitting..." : "Submit Feedback"}
                 </Button>
                 <Button
                   variant="outline"

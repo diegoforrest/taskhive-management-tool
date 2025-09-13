@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronDown, List, Plus, Clock, AlertCircle, PlayCircle, CheckCircle, Calendar, Funnel, XCircle, Pause, Flame, Gauge, Leaf, ClockAlert, Rocket, User } from "lucide-react";
+import { ChevronDown, List, Plus, Clock, AlertCircle, PlayCircle, CheckCircle, Calendar, Funnel, XCircle, Pause, Flame, Gauge, Leaf, ClockAlert, Rocket, User, BadgeQuestionMark } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -741,7 +741,21 @@ export default function DashboardHome() {
                             {activeTab === 'review' && (
                               (() => {
                                 const info = taskChangeMap[task.id];
-                                if (!info || !info.new_status) return null;
+                                // If there is no changelog/status, show a pending feedback indicator
+                                if (!info || !info.new_status) {
+                                  return (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="text-blue-700 cursor-pointer" aria-hidden>
+                                          <Clock className="h-4 w-4 hover:scale-105 transition-transform" />
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top">
+                                        <div className="text-xs">Pending feedback</div>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  );
+                                }
                                 const ns = (info.new_status || '').toLowerCase();
                                 if (ns.includes('request')) {
                                   return (
