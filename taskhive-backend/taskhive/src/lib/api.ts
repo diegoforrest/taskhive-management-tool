@@ -1,6 +1,6 @@
 // Real API configuration for TaskHive Backend
 // Use NEXT_PUBLIC_API_BASE_URL when deployed (Vercel) or fall back to localhost for local dev
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://taskhive-backend-cjry.onrender.com';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
 
 interface LoginRequest {
   user_id: string; // Can be either numeric string or email
