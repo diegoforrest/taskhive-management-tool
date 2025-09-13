@@ -6,8 +6,7 @@
 import * as React from "react"
 import { useTheme } from "next-themes"
 import { useRouter } from "next/navigation"
-import { Sun, Moon, Laptop, Search, User2, LogOut, Loader2, Calendar, HelpCircle } from "lucide-react"
-import { Toaster } from 'react-hot-toast'
+import { Sun, Moon, Laptop, Search, User2, Settings, LogOut, Loader2, Calendar, HelpCircle } from "lucide-react"
 import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
@@ -241,7 +240,6 @@ export function TopBar() {
 
   return (
     <>
-  <Toaster position="top-center" />
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex h-14 items-center px-2 sm:px-4 gap-2 sm:gap-4 justify-between">
           {/* Left side: Sidebar trigger */}
@@ -341,7 +339,12 @@ export function TopBar() {
                         Profile
                       </Link>
                     </DropdownMenuItem>
-                    {/* Settings removed per request; only Profile and Sign out remain */}
+                    <DropdownMenuItem asChild>
+                      <Link href="/settings">
+                        <Settings className="mr-2 h-4 w-4" />
+                        Settings
+                      </Link>
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleLogout} className="text-red-600">
                       <LogOut className="mr-2 h-4 w-4" />
                       Log out

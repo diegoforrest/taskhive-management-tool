@@ -1,6 +1,5 @@
 // Real API configuration for TaskHive Backend
-// Use NEXT_PUBLIC_API_BASE_URL when deployed (Vercel) or fall back to localhost for local dev
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://taskhive-backend-cjry.onrender.com';
+const API_BASE_URL = 'http://localhost:3001';
 
 interface LoginRequest {
   user_id: string; // Can be either numeric string or email
@@ -40,84 +39,28 @@ export type ApiResponse<T = unknown> = {
   message?: string
 } | T
 
-import axios, { AxiosInstance } from 'axios';
+// Utility function to make HTTP requests
+const apiRequest = async (endpoint: string, options: RequestInit = {}): Promise<ApiResponse<unknown>> => {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const config: RequestInit = {
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+    ...options,
+  };
 
-// Create axios instance with baseURL and sensible defaults
-const axiosInstance: AxiosInstance = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 10000, // 10s timeout
-  headers: {
-    'Content-Type': 'application/json',
-  }
-});
-
-// Centralized response/error interceptor to normalize errors across the app.
-axiosInstance.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    // If backend returned structured JSON, prefer that
-    if (error && error.response) {
-      const { status, data } = error.response;
-      // If body is HTML (some servers return HTML error pages), normalize it
-      if (typeof data === 'string' && data.toLowerCase().includes('<html')) {
-        return Promise.reject({ message: 'Server error — please try again later.', status });
-      }
-      // If data has message or error fields, use them
-      if (data && (data.message || data.error)) {
-        return Promise.reject({ message: data.message || data.error, data, status });
-      }
-      // Fallback: if there's a status code, give a friendly message
-      if (status >= 500) {
-        return Promise.reject({ message: 'Server error — please try again later.', data, status });
-      }
-      return Promise.reject({ message: (data && data.message) || JSON.stringify(data) || 'Request failed', data, status });
-    }
-
-    // Network/unknown error
-    return Promise.reject({ message: error?.message || 'Network error' });
-  }
-);
-
-// Utility wrapper to call axios and normalize responses to ApiResponse<T>
-const apiRequest = async (endpoint: string, options: { method?: string; data?: unknown; params?: Record<string, unknown>; headers?: Record<string, string> } = {}): Promise<ApiResponse<unknown>> => {
   try {
-    const method = (options.method || 'GET').toUpperCase();
-
-    // Ensure request bodies are sent as valid JSON text. Some environments
-    // (proxies, CLI quoting, or accidental double-stringify) can cause the
-    // server to receive malformed JSON. Explicitly stringify objects here
-    // and set a strict Content-Type to reduce that class of errors.
-    let requestData: unknown = options.data;
-    const headers = {
-      ...(options.headers || {}),
-      // Ensure charset is included which helps some servers parse correctly
-      'Content-Type': (options.headers && options.headers['Content-Type']) || 'application/json; charset=utf-8',
-    } as Record<string, string>;
-
-    if (requestData !== undefined && requestData !== null) {
-      // If caller passed an object, stringify it exactly once.
-      if (typeof requestData === 'object' && !(requestData instanceof FormData) && !(requestData instanceof URLSearchParams)) {
-        requestData = JSON.stringify(requestData);
-      }
+    const response = await fetch(url, config);
+  const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.message || `HTTP error! status: ${response.status}`);
     }
-
-    const res = await axiosInstance.request({
-      url: endpoint,
-      method,
-      data: requestData,
-      params: options.params,
-      headers,
-    });
-
-    // axios already parses JSON responses
-    return res.data as ApiResponse<unknown>;
-  } catch (error: any) {
-    // Normalize error for callers
-    console.error('API Request Error:', error?.message || error);
-    if (error?.response && error.response.data) {
-      // Backend returned structured error
-      throw error.response.data;
-    }
+    
+  return data as ApiResponse<unknown>;
+  } catch (error) {
+    console.error('API Request Error:', error);
     throw error;
   }
 };
@@ -129,7 +72,7 @@ export const authApi = {
     
     return (await apiRequest('/testlogin', {
       method: 'POST',
-      data: credentials,
+      body: JSON.stringify(credentials),
     })) as LoginResponse;
   },
 
@@ -138,7 +81,7 @@ export const authApi = {
     
     return (await apiRequest('/test01/create_member', {
       method: 'POST',
-      data: userData,
+      body: JSON.stringify(userData),
     })) as RegisterResponse;
   },
 
@@ -151,7 +94,7 @@ export const authApi = {
     
     const res = await apiRequest('/test02/create_project', {
       method: 'POST',
-      data: projectData,
+      body: JSON.stringify(projectData),
     }) as ApiResponse<Project>;
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('projectCreated'))
@@ -179,7 +122,7 @@ export const authApi = {
     
     const res = await apiRequest(`/test04/update_project/${projectId}`, {
       method: 'POST',
-      data: updateData,
+      body: JSON.stringify(updateData),
     }) as ApiResponse<Project>;
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('projectUpdated'))
@@ -230,76 +173,6 @@ export const authApi = {
     throw new Error('Failed to fetch projects');
   },
 
-  // Update user profile on the backend
-  updateUser: async (userId: number, updateData: { email?: string; firstName?: string; lastName?: string }) => {
-    console.log('Real API update user request:', userId, updateData)
-    const res = await apiRequest(`/test11/update_user/${userId}`, {
-      method: 'POST',
-      data: updateData,
-    })
-    return res
-  },
-
-  // Change password endpoint
-  changePassword: async (userId: number, currentPassword: string, newPassword: string) => {
-    console.log('Real API change password request for user:', userId)
-    const res = await apiRequest(`/test12/change_password/${userId}`, {
-      method: 'POST',
-      data: { currentPassword, newPassword },
-    })
-    return res
-  },
-
-  // Verify password without changing it
-  verifyPassword: async (userId: number, password: string) => {
-    console.log('Real API verify password request for user:', userId)
-    const res = await apiRequest(`/test13/verify_password/${userId}`, {
-      method: 'POST',
-      data: { password },
-    })
-    return res
-  },
-
-  // Request password reset (forgot password)
-  // NOTE: Assumes backend exposes POST /test14/forgot_password accepting { email }
-  requestPasswordReset: async (email: string) => {
-    console.log('Real API request password reset for:', email)
-    const res = await apiRequest(`/test14/forgot_password`, {
-      method: 'POST',
-      data: { email },
-    })
-    return res
-  },
-
-  // Reset password using token (frontend calls POST /test15/reset_password { token, newPassword })
-  resetPassword: async (token: string, newPassword: string) => {
-    console.log('Real API reset password request')
-    const res = await apiRequest(`/test15/reset_password`, {
-      method: 'POST',
-      data: { token, newPassword },
-    })
-    return res
-  },
-
-  // Reset password using tid + token
-  resetPasswordWithTid: async (tid: number, token: string, newPassword: string) => {
-    console.log('Real API reset password with tid request')
-    const res = await apiRequest(`/test15/reset_password`, {
-      method: 'POST',
-      data: { tid, token, newPassword },
-    })
-    return res
-  },
-
-  // Validate reset token (tid + token)
-  validateReset: async (tid: number, token: string) => {
-    console.log('Real API validate reset token')
-    const res = await apiRequest(`/test16/validate_reset?tid=${tid}&token=${encodeURIComponent(token)}`, {
-      method: 'GET',
-    })
-    return res
-  },
-
   createTask: async (taskData: {
     project_id: number;
     name: string;
@@ -312,7 +185,7 @@ export const authApi = {
     
     const res = await apiRequest('/test05/create_task', {
       method: 'POST',
-      data: taskData,
+      body: JSON.stringify(taskData),
     }) as ApiResponse<Task>;
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('taskCreated'))
@@ -354,7 +227,7 @@ export const authApi = {
     
     const res = await apiRequest(`/test08/update_task/${taskId}`, {
       method: 'POST',
-      data: updateData,
+      body: JSON.stringify(updateData),
     }) as ApiResponse<Task>;
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('taskUpdated'))
@@ -626,7 +499,7 @@ export const tasksApi = {
       if (typeof projectId === 'number') payload.project_id = projectId;
       const res = await apiRequest('/test10/create_changelog', {
         method: 'POST',
-        data: payload,
+        body: JSON.stringify(payload),
       });
       return res;
     } catch (e) {

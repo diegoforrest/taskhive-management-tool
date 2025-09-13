@@ -12,7 +12,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
 import { authApi, Task, CreateTaskRequest, Project, tasksApi } from "@/lib/api";
-import { toast } from 'react-hot-toast';
 import { useAuth } from "@/lib/auth-context";
 import { useSearch } from "@/lib/search-context";
 import ClientDate from "@/components/ui/client-date"
@@ -196,10 +195,26 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
   const [draggedItem, setDraggedItem] = useState<TaskWithReview | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  // error UI replaced by react-hot-toast notifications
+  const [error, setError] = useState<string>('');
+  const [errorCountdown, setErrorCountdown] = useState<number>(0);
   const [projectData, setProjectData] = useState<Project | ProjectInfo | null>(null);
 
-  // Use react-hot-toast for transient error messaging instead of local error state
+  // Function to set error with countdown
+  const setErrorWithCountdown = useCallback((message: string) => {
+    setError(message);
+    setErrorCountdown(5);
+    
+    const timer = setInterval(() => {
+      setErrorCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setError('');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
 
   const loadTasks = useCallback(async () => {
     if (!projectId) return;
@@ -245,7 +260,8 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
         'Done': enhancedTasks.filter((task) => task.status === 'Done'),
       };
       
-  setTasks(groupedTasks);
+      setTasks(groupedTasks);
+      setError('');
     } catch (err: unknown) {
       console.error('Failed to load tasks:', err);
       setTasks({
@@ -330,7 +346,7 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
 
   const addNewTask = useCallback(async (taskData: CreateTaskRequest): Promise<void> => {
     if (!projectId) {
-      toast.error('Project ID is required to create a task.', { position: 'top-center' });
+      setErrorWithCountdown('Project ID is required to create a task.');
       return;
     }
 
@@ -372,9 +388,9 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
       }
     } catch (error) {
       console.error('Failed to create task:', error);
-      toast.error('Failed to create task. Please try again.', { position: 'top-center' });
+      setErrorWithCountdown('Failed to create task. Please try again.');
     }
-  }, [projectId]);
+  }, [projectId, setErrorWithCountdown]);
 
   const deleteTask = useCallback(async (taskId: number): Promise<void> => {
     try {
@@ -395,9 +411,9 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
       }
     } catch (error) {
       console.error('Failed to delete task:', error);
-      toast.error('Failed to delete task. Please try again.', { position: 'top-center' });
+      setErrorWithCountdown('Failed to delete task. Please try again.');
     }
-  }, []);
+  }, [setErrorWithCountdown]);
 
   const updateTask = useCallback(async (updatedTask: TaskWithReview): Promise<void> => {
     try {
@@ -436,10 +452,10 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
       setSelectedItem(null);
     } catch (error) {
       console.error('Failed to update task:', error);
-      toast.error('Failed to update task. Please try again.', { position: 'top-center' });
+      setErrorWithCountdown('Failed to update task. Please try again.');
       loadTasksRef.current?.();
     }
-  }, []);
+  }, [setErrorWithCountdown]);
 
   const updateTaskStatus = useCallback(async (task: TaskWithReview, newStatus: string): Promise<void> => {
     const updatedTask = { ...task, status: newStatus as ItemStatus };
@@ -523,7 +539,16 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
         </Button>
       </div>
 
-      {/* transient errors are shown via react-hot-toast */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-3 sm:px-4 py-3 rounded text-sm">
+          <div className="flex justify-between items-center">
+            <span>{error}</span>
+            {errorCountdown > 0 && (
+              <span className="text-red-500 text-xs">({errorCountdown}s)</span>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {columns.map((column) => {
@@ -981,7 +1006,6 @@ interface NewItemFormProps {
 }
 
 const NewItemForm = ({ columnId, onCancel, onAdd }: NewItemFormProps) => {
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<CreateTaskRequest>({
     name: '',
     contents: '',
@@ -993,19 +1017,9 @@ const NewItemForm = ({ columnId, onCancel, onAdd }: NewItemFormProps) => {
     status: columnId
   });
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!formData.name.trim()) return;
-    if (isSubmitting) return;
-    try {
-      setIsSubmitting(true);
-      await onAdd(formData);
-      toast.success('Task added', { position: 'top-center' });
-    } catch (e) {
-      console.error('Add task failed:', e);
-      toast.error('Failed to add task', { position: 'top-center' });
-    } finally {
-      setIsSubmitting(false);
-    }
+    onAdd(formData);
   };
 
   return (
@@ -1076,8 +1090,8 @@ const NewItemForm = ({ columnId, onCancel, onAdd }: NewItemFormProps) => {
         )}
         
         <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-          <Button onClick={handleSubmit} className="flex-1 text-sm" disabled={isSubmitting}>
-            {isSubmitting ? 'Adding…' : 'Add Task'}
+          <Button onClick={handleSubmit} className="flex-1 text-sm">
+            Add Task
           </Button>
           <Button variant="outline" onClick={onCancel} className="flex-1 text-sm">
             Cancel
