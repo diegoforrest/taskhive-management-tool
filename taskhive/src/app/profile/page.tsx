@@ -82,6 +82,7 @@ export default function ProfilePage() {
   const [changing, setChanging] = useState(false)
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
+  const [changePasswordDialogOpen, setChangePasswordDialogOpen] = useState(false)
 
   // Debounced verification of current password
   React.useEffect(() => {
@@ -126,6 +127,8 @@ export default function ProfilePage() {
         toast.success('Password changed successfully', { position: 'top-center' })
         setCurrentPassword("")
         setNewPassword("")
+        // close confirmation dialog on success
+        setChangePasswordDialogOpen(false)
       } else {
         toast.error('Failed to change password', { position: 'top-center' })
       }
@@ -283,19 +286,19 @@ export default function ProfilePage() {
               <Button variant="ghost" onClick={() => { setCurrentPassword(''); setNewPassword('') }}>Reset</Button>
 
               {/* Change password confirmation dialog */}
-              <Dialog>
+              <Dialog open={changePasswordDialogOpen} onOpenChange={setChangePasswordDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button onClick={() => { /* open dialog */ }} disabled={changing || !currentPassword || !newPassword || newPassword.length < 8}>{changing ? 'Changing...' : 'Change password'}</Button>
+                  <Button disabled={changing || !currentPassword || !newPassword || newPassword.length < 8}>{changing ? 'Changing...' : 'Change password'}</Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Confirm password change</DialogTitle>
                     <DialogDescription>Do you want to change your password now?</DialogDescription>
                   </DialogHeader>
-                  <DialogFooter>
+                    <DialogFooter>
                     <Button variant="ghost">Cancel</Button>
-                    <Button onClick={async () => { await handleChangePassword(); }} disabled={!currentPassword || !newPassword || newPassword.length < 8}>
-                      Yes, change password
+                    <Button onClick={async () => { await handleChangePassword(); }} disabled={changing || !currentPassword || !newPassword || newPassword.length < 8}>
+                      {changing ? 'Changing Password' : 'Yes, change password'}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
