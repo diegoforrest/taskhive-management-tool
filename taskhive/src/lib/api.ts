@@ -82,15 +82,34 @@ axiosInstance.interceptors.response.use(
 const apiRequest = async (endpoint: string, options: { method?: string; data?: unknown; params?: Record<string, unknown>; headers?: Record<string, string> } = {}): Promise<ApiResponse<unknown>> => {
   try {
     const method = (options.method || 'GET').toUpperCase();
+
+    // Ensure request bodies are sent as valid JSON text. Some environments
+    // (proxies, CLI quoting, or accidental double-stringify) can cause the
+    // server to receive malformed JSON. Explicitly stringify objects here
+    // and set a strict Content-Type to reduce that class of errors.
+    let requestData: unknown = options.data;
+    const headers = {
+      ...(options.headers || {}),
+      // Ensure charset is included which helps some servers parse correctly
+      'Content-Type': (options.headers && options.headers['Content-Type']) || 'application/json; charset=utf-8',
+    } as Record<string, string>;
+
+    if (requestData !== undefined && requestData !== null) {
+      // If caller passed an object, stringify it exactly once.
+      if (typeof requestData === 'object' && !(requestData instanceof FormData) && !(requestData instanceof URLSearchParams)) {
+        requestData = JSON.stringify(requestData);
+      }
+    }
+
     const res = await axiosInstance.request({
       url: endpoint,
       method,
-      data: options.data,
+      data: requestData,
       params: options.params,
-      headers: options.headers,
+      headers,
     });
 
-    // axios already parses JSON
+    // axios already parses JSON responses
     return res.data as ApiResponse<unknown>;
   } catch (error: any) {
     // Normalize error for callers
