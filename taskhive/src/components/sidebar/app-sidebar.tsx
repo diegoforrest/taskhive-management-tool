@@ -327,7 +327,7 @@ export function AppSidebar() {
           className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
         >
           {/* Make entire content clickable */}
-          <Link href={isAuthenticated ? "/task" : "/"} className="flex items-center w-full" onClick={(e) => e.stopPropagation()}>
+          <Link href={isAuthenticated ? "/dashboard?tab=all" : "/"} className="flex items-center w-full" onClick={(e) => e.stopPropagation()}>
             {/* Logo */}
             <Image
               src="/logo.png"

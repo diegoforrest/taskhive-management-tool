@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
 import { authApi, Task, CreateTaskRequest, Project, tasksApi } from "@/lib/api";
+import { toast } from 'react-hot-toast';
 import { useAuth } from "@/lib/auth-context";
 import { useSearch } from "@/lib/search-context";
 import ClientDate from "@/components/ui/client-date"
@@ -1006,6 +1007,7 @@ interface NewItemFormProps {
 }
 
 const NewItemForm = ({ columnId, onCancel, onAdd }: NewItemFormProps) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<CreateTaskRequest>({
     name: '',
     contents: '',
@@ -1017,9 +1019,19 @@ const NewItemForm = ({ columnId, onCancel, onAdd }: NewItemFormProps) => {
     status: columnId
   });
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!formData.name.trim()) return;
-    onAdd(formData);
+    if (isSubmitting) return;
+    try {
+      setIsSubmitting(true);
+      await onAdd(formData);
+      toast.success('Task added', { position: 'top-center' });
+    } catch (e) {
+      console.error('Add task failed:', e);
+      toast.error('Failed to add task', { position: 'top-center' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -1090,8 +1102,8 @@ const NewItemForm = ({ columnId, onCancel, onAdd }: NewItemFormProps) => {
         )}
         
         <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-          <Button onClick={handleSubmit} className="flex-1 text-sm">
-            Add Task
+          <Button onClick={handleSubmit} className="flex-1 text-sm" disabled={isSubmitting}>
+            {isSubmitting ? 'Adding…' : 'Add Task'}
           </Button>
           <Button variant="outline" onClick={onCancel} className="flex-1 text-sm">
             Cancel
@@ -1280,7 +1292,7 @@ const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
               </div>
               
               <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-600">👤 Assignee</label>
+                <label className="text-xs font-medium text-gray-600"> Assignee</label>
                 <Input
                   value={editedItem.assignee || ''}
                   onChange={(e) => setEditedItem({...editedItem, assignee: e.target.value})}
