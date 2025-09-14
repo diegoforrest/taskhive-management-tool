@@ -157,4 +157,3 @@ This document describes the complete authentication system setup for TaskHive wi
 - `src/app/auth/auth-layout.tsx` - Authentication layout
 - Backend controllers and services already configured
 
-The authentication system is now fully functional and ready for testing.
