@@ -1,8 +1,8 @@
 // FOR DEPLOYED VERSION
-// const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://taskhive-backend-cjry.onrender.com';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://taskhive-backend-cjry.onrender.com';
 
-//FOR LOCAL DEV VERSION
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+// //FOR LOCAL DEV VERSION
+// const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 interface LoginRequest {
   user_id: string; // Can be either numeric string or email
