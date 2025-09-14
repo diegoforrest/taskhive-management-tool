@@ -5,8 +5,7 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
-  // Enable CORS for frontend communication. Read allowed origins from CORS_ORIGINS
-  // environment variable (comma-separated). Fall back to localhost dev origins.
+
   const defaultOrigins = ['http://localhost:3000', 'http://localhost:3001'];
   const envOrigins = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)
