@@ -29,6 +29,8 @@ import { AuthModule } from './auth/auth.module';
         if (sslEnabled) {
           const caEnv = configService.get('DB_SSL_CA');
           const caPath = configService.get('DB_SSL_CA_PATH');
+          const rejectEnv = (configService.get('DB_SSL_REJECT_UNAUTHORIZED') || 'true').toString().toLowerCase();
+          const rejectUnauthorized = rejectEnv === 'true';
           let caValue: Buffer | undefined;
 
           if (caEnv) {
@@ -41,11 +43,15 @@ import { AuthModule } from './auth/auth.module';
 
           if (caValue) {
             // mysql2/typeorm accept the CA as a string (PEM). Ensure we pass a utf8 string
-            extra = { ssl: { ca: caValue.toString('utf8') } };
+            extra = { ssl: { ca: caValue.toString('utf8'), rejectUnauthorized } };
+            console.log('[DB] SSL enabled, CA loaded, rejectUnauthorized=', rejectUnauthorized);
           } else {
-            // Do not pass boolean true — mysql2 expects an object for ssl profile
-            extra = { ssl: {} };
+            // Pass an object; include rejectUnauthorized to allow temporary overrides for debugging
+            extra = { ssl: { rejectUnauthorized } };
+            console.log('[DB] SSL enabled, no CA provided, rejectUnauthorized=', rejectUnauthorized);
           }
+        } else {
+          console.log('[DB] SSL disabled');
         }
 
         return {
