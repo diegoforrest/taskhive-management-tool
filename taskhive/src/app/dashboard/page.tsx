@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronDown, List, Plus, Clock, AlertCircle, PlayCircle, CheckCircle, Calendar, Funnel, XCircle, Pause, Flame, Gauge, Leaf, ClockAlert, Rocket, User, BadgeQuestionMark, FolderOpen, MessageSquareCode, CircleCheck } from "lucide-react";
+import { ChevronDown, List, Plus, Clock, AlertCircle, PlayCircle, CheckCircle, Calendar, Funnel, XCircle, Pause, Flame, Gauge, Leaf, ClockAlert, Rocket, User, BadgeQuestionMark, FolderOpen, MessageSquareCode, CircleCheck, Archive, ArchiveX, Undo2, CalendarCheck } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -33,8 +33,18 @@ export default function DashboardHome() {
     open: false,
     projectId: null
   });
+  // Archive dialog and FAB (floating action button) state
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  // Confirmation modal for archiving
+  const [confirmArchiveOpen, setConfirmArchiveOpen] = useState(false);
+  const [confirmTargetId, setConfirmTargetId] = useState<number | null>(null);
+  const [fabPos, setFabPos] = useState<{ x: number; y: number }>(() => ({ x: 0, y: 0 }));
+  const draggingRef = useRef<{ active: boolean; startX: number; startY: number; origX: number; origY: number; moved: boolean }>({ active: false, startX: 0, startY: 0, origX: 0, origY: 0, moved: false });
+  const draggingStateRef = useRef(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [note, setNote] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
+  const projectsRef = useRef<Project[]>([]);
   const [projectTasks, setProjectTasks] = useState<Record<number, Task[]>>({});
   // track which project's <details> dropdown is open so we can rotate the chevron
   const [detailsOpenMap, setDetailsOpenMap] = useState<Record<number, boolean>>({});
@@ -142,6 +152,150 @@ export default function DashboardHome() {
       setLoading(false);
     }
   }, [user?.user_id, loadProjectTasks]);
+
+  // Archive / Unarchive helpers with optimistic persistence and rollback
+  const archiveProject = useCallback(async (projectId: number) => {
+    // only archive if project is completed
+    const prevSnapshot = projectsRef.current;
+    setProjects(prev => prev.map(p => (p.id === projectId && (p as any).status === 'Completed') ? ({ ...p, archived: true, archived_at: new Date().toISOString() }) : p));
+
+    try {
+      await authApi.updateProject(projectId, { archived: true });
+    } catch (err) {
+      console.error('Failed to persist archive state', err);
+      // rollback optimistic change
+      setProjects(prevSnapshot);
+      // TODO: show user-facing notification
+    }
+  }, []);
+
+  const unarchiveProject = useCallback(async (projectId: number) => {
+    const prevSnapshot = projectsRef.current;
+    setProjects(prev => prev.map(p => p.id === projectId ? ({ ...p, archived: false, archived_at: undefined }) : p));
+
+    try {
+      await authApi.updateProject(projectId, { archived: false });
+    } catch (err) {
+      console.error('Failed to persist unarchive', err);
+      // rollback optimistic change
+      setProjects(prevSnapshot);
+      // TODO: show user-facing notification
+    }
+  }, []);
+
+  // derived archived projects
+  const archivedProjects = projects.filter(p => (p as any).archived === true);
+  const [unarchivingMap, setUnarchivingMap] = useState<Record<number, boolean>>({});
+  const suppressClickRef = useRef(false);
+
+  const requestArchive = useCallback((projectId: number) => {
+    setConfirmTargetId(projectId);
+    setConfirmArchiveOpen(true);
+  }, []);
+
+  const confirmArchive = useCallback(() => {
+    if (confirmTargetId == null) return;
+    // call async archive helper (fire-and-forget for UI flow)
+    void archiveProject(confirmTargetId);
+    setConfirmTargetId(null);
+    setConfirmArchiveOpen(false);
+  }, [confirmTargetId, archiveProject]);
+
+  // FAB position initialization (client-only)
+  useEffect(() => {
+    try {
+      // Always start at bottom-right corner on load
+      const margin = 24;
+      const btnSize = 56; // approximate touch target / button footprint
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const initX = Math.max(margin, Math.min(vw - margin - btnSize, vw - 88));
+      const initY = Math.max(margin, Math.min(vh - margin - btnSize, vh - 120));
+      setFabPos({ x: vw - margin - btnSize, y: vh - margin - btnSize });
+    } catch (e) {
+      // ignore in SSR
+    }
+  }, []);
+
+  // Keep FAB visible on window resize by clamping its position to the viewport
+  useEffect(() => {
+    const onResize = () => {
+      const margin = 24;
+      const btnSize = 56;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      setFabPos(prev => {
+        const nx = Math.max(margin, Math.min(prev.x, vw - margin - btnSize));
+        const ny = Math.max(margin, Math.min(prev.y, vh - margin - btnSize));
+        // only update if changed to avoid re-renders
+        if (nx !== prev.x || ny !== prev.y) return { x: nx, y: ny };
+        return prev;
+      });
+    };
+
+    window.addEventListener('resize', onResize);
+    // run once to ensure initial clamp on mount
+    onResize();
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // Pointer handlers for dragging the FAB
+  useEffect(() => {
+    const onPointerMove = (ev: PointerEvent) => {
+      if (!draggingRef.current.active) return;
+      const dx = ev.clientX - draggingRef.current.startX;
+      const dy = ev.clientY - draggingRef.current.startY;
+      // mark moved when drag exceeds small threshold to distinguish from click
+      if (!draggingRef.current.moved && Math.hypot(dx, dy) > 6) draggingRef.current.moved = true;
+      setFabPos({ x: draggingRef.current.origX + dx, y: draggingRef.current.origY + dy });
+    };
+      const onPointerUp = () => {
+      const wasMoved = draggingRef.current.moved;
+      draggingRef.current.active = false;
+      draggingRef.current.moved = false;
+  draggingStateRef.current = false; // ended dragging so re-enable transitions
+  try { setIsDragging(false); } catch (_) {}
+
+      if (wasMoved) {
+        // suppress the upcoming click event (if any)
+        suppressClickRef.current = true;
+        window.setTimeout(() => { suppressClickRef.current = false; }, 50);
+        // Snap to nearest corner if it was moved
+        const snapToCorner = () => {
+          const margin = 24; // distance from edge
+          const vw = window.innerWidth;
+          const vh = window.innerHeight;
+          let nx = fabPos.x;
+          let ny = fabPos.y;
+          // constrain inside viewport
+          nx = Math.max(margin, Math.min(nx, vw - margin - 56));
+          ny = Math.max(margin, Math.min(ny, vh - margin - 56));
+          // find nearest corner
+          const corners = [
+            { x: margin, y: margin }, // top-left
+            { x: vw - margin - 56, y: margin }, // top-right
+            { x: margin, y: vh - margin - 56 }, // bottom-left
+            { x: vw - margin - 56, y: vh - margin - 56 }, // bottom-right
+          ];
+          let best = corners[0];
+          let bestDist = Infinity;
+          for (const c of corners) {
+            const d = Math.hypot(nx - c.x, ny - c.y);
+            if (d < bestDist) { bestDist = d; best = c; }
+          }
+          setFabPos({ x: best.x, y: best.y });
+        };
+
+        try { snapToCorner(); } catch (e) { /* ignore */ }
+      }
+    };
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+  }, [draggingRef, fabPos]);
 
   useEffect(() => {
     console.log('Dashboard mounted, loading data...');
@@ -347,7 +501,9 @@ export default function DashboardHome() {
   // Filter projects based on active tab, priority and date filters
   const getFilteredProjects = () => {
     // Start with base tab filter
+    // Exclude archived projects so they are removed from main lists (including Completed)
     let base = projects.filter((project: Project) => {
+      if ((project as any).archived === true) return false;
       switch (activeTab) {
         case "review":
           return getProjectProgress(project.id) === 100 && project.status !== "Completed";
@@ -511,7 +667,7 @@ export default function DashboardHome() {
             >
               <span className="sm:hidden inline-flex items-center"><CircleCheck className="h-5 w-5" /></span>
               <span className="hidden sm:inline">Completed</span>
-              <span className="hidden sm:inline"> ({projects.filter(p => p.status === "Completed").length})</span>
+              <span className="hidden sm:inline"> ({projects.filter(p => p.status === "Completed" && (p as any).archived !== true).length})</span>
             </button>
           </div>
         </div>
@@ -565,17 +721,17 @@ export default function DashboardHome() {
             <Link href="/dashboard/projects/new" className="flex items-center gap-2">
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Add New Project</span>
-              <span className="sm:hidden inline">Task</span>
+              <span className="sm:hidden inline">Project</span>
             </Link>
           </Button>
         </div>
       </nav>
 
-      <main className="p-4 sm:p-6">
+  <main className="p-4 sm:p-6">
         {sortedProjects.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
             {sortedProjects.map((project) => (
-              <div id={`project-${project.id}`} key={project.id} className="project-card bg-white dark:bg-gray-900 rounded-lg shadow p-3 sm:p-5 flex flex-col gap-2 border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-primary/20 transition-all duration-200">
+              <div id={`project-${project.id}`} key={project.id} className="project-card relative bg-white dark:bg-gray-900 rounded-lg shadow p-3 sm:p-5 flex flex-col gap-2 border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-primary/20 transition-all duration-200">
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
                     {project.due_date ? (
@@ -612,16 +768,33 @@ export default function DashboardHome() {
                       <span className="sr-only">{project.status === "Completed" ? "Completed" : getProjectStatus(project.id)}</span>
                       <span className="hidden [@media(min-width:1499px)]:inline">{project.status === "Completed" ? "Completed" : getProjectStatus(project.id)}</span>
                     </span>
+                    
+                  </div>
+                  {/* Right-side controls: archive (shows pointer) and other actions */}
+                  <div className="flex items-center justify-end gap-2">
+                    {(project.status === 'Completed' && !(project as any).archived) && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setConfirmTargetId(project.id); setConfirmArchiveOpen(true); }}
+                        title="Archive project"
+                        className="p-1 rounded hover:bg-muted/5 text-muted-foreground cursor-pointer"
+                        aria-label="Archive project"
+                      >
+                        <ArchiveX className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                   {activeTab === "all" && (
                     <div onClick={(e) => e.stopPropagation()}>
-                      <Button size="icon" variant="outline" className="ml-2" asChild>
-                        <Link href={`/dashboard/projects/${project.id}/edit`} aria-label="Edit Project">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.536-6.536a2 2 0 112.828 2.828L11.828 15.828a2 2 0 01-1.414.586H7v-3a2 2 0 01.586-1.414z" />
-                          </svg>
-                        </Link>
-                      </Button>
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          <Button size="icon" variant="outline" className="ml-2" asChild>
+                            <Link href={`/dashboard/projects/${project.id}/edit`} aria-label="Edit Project">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.536-6.536a2 2 0 112.828 2.828L11.828 15.828a2 2 0 01-1.414.586H7v-3a2 2 0 01.586-1.414z" />
+                              </svg>
+                            </Link>
+                          </Button>
+                          {/* archive control moved inline after status pill */}
+                        </div>
                     </div>
                   )}
                 </div>
@@ -853,6 +1026,124 @@ export default function DashboardHome() {
           </div>
         )}
       </main>
+      {/* Archive Dialog (uses shared Dialog components) */}
+      <Dialog open={archiveDialogOpen} onOpenChange={(open) => setArchiveDialogOpen(open)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Archived Projects</DialogTitle>
+            <div className="text-sm text-muted-foreground">Only completed projects can be archived. You can restore them here.</div>
+          </DialogHeader>
+
+          <div className="mt-2 max-h-[60vh] overflow-auto">
+            {archivedProjects.length === 0 ? (
+              <div className="text-center text-sm text-muted-foreground p-8">No archived projects</div>
+            ) : (
+              <div className="space-y-4">
+                {archivedProjects.map(p => (
+                  <div key={p.id} className={`p-3 bg-gray-50 dark:bg-gray-800 rounded transition-all duration-500 ease-out ${unarchivingMap[p.id] ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <h4 className="font-medium">{p.name}</h4>
+                        <div className="text-xs text-muted-foreground flex items-center gap-2">
+                          <CalendarCheck className="h-4 w-4" />
+                          <span>{(p as any).archived_at ? new Date((p as any).archived_at).toLocaleDateString() : 'Unknown'}</span>
+                        </div>
+                      </div>
+                      <div>
+                        <Button asChild>
+                          <button onClick={() => {
+                            // animate then unarchive (persisted)
+                            setUnarchivingMap(m => ({ ...m, [p.id]: true }));
+                            setTimeout(() => {
+                              void unarchiveProject(p.id);
+                              setUnarchivingMap(m => { const nm = { ...m }; delete nm[p.id]; return nm; });
+                            }, 500);
+                          }} className="flex items-center gap-2 font-semibold">
+                            <Undo2 className="h-4 w-4" />
+                            <span className="hidden sm:inline">Unarchive</span>
+                          </button>
+                        </Button>
+                      </div>
+                    </div>
+
+                    <p className="text-sm text-muted-foreground mt-2">{p.description}</p>
+
+                    <details className="mt-3" open={!!detailsOpenMap[p.id]} onToggle={(e) => setDetailsOpenMap(prev => ({ ...prev, [p.id]: (e.target as HTMLDetailsElement).open }))}>
+                      <summary className="flex items-center justify-between cursor-pointer text-sm">
+                        <span className="font-medium">Tasks</span>
+                        <ChevronDown className={`h-4 w-4 transform transition-transform ${detailsOpenMap[p.id] ? 'rotate-180' : ''}`} />
+                      </summary>
+                      <ul className="mt-2 space-y-1 text-xs">
+                        {(projectTasks[p.id] || []).length === 0 ? (
+                          <li className="text-muted-foreground">No tasks</li>
+                        ) : (
+                          (projectTasks[p.id] || []).map(t => (
+                            <li key={t.id} className="flex items-center justify-between">
+                              <span>{t.name}</span>
+                              <span className="text-muted-foreground text-xs">{t.status}</span>
+                            </li>
+                          ))
+                        )}
+                      </ul>
+                    </details>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <div className="flex justify-end w-full">
+              <Button variant="ghost" className="font-semibold" onClick={() => setArchiveDialogOpen(false)}>Close</Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Archive Dialog (using shared Dialog components) */}
+      <Dialog open={confirmArchiveOpen} onOpenChange={(open) => { if (!open) { setConfirmArchiveOpen(false); setConfirmTargetId(null); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Archive</DialogTitle>
+            <DialogDescription>Only completed projects can be archived. You can restore it later from the Archive.</DialogDescription>
+          </DialogHeader>
+          <div className="mt-2">
+            <p className="text-sm text-muted-foreground">Are you sure you want to archive this project?</p>
+          </div>
+          <DialogFooter>
+            <div className="flex gap-2">
+              <Button variant="ghost" className="font-semibold" onClick={() => { setConfirmArchiveOpen(false); setConfirmTargetId(null); }}>Cancel</Button>
+              <Button className="bg-red-600 text-white font-semibold" onClick={() => confirmArchive()}>Archive</Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Draggable FAB for Archives */}
+      <button
+        aria-label="Open archived projects"
+        onClick={() => { if (!suppressClickRef.current) setArchiveDialogOpen(true); }}
+        onPointerDown={(e) => {
+          try {
+            draggingRef.current.active = true;
+            draggingStateRef.current = true; // disable transitions while dragging
+            setIsDragging(true);
+            const pe = e as unknown as PointerEvent;
+            draggingRef.current.startX = pe.clientX;
+            draggingRef.current.startY = pe.clientY;
+            draggingRef.current.origX = fabPos.x;
+            draggingRef.current.origY = fabPos.y;
+          } catch (_err) {}
+        }}
+        // position using transform for smoother GPU-accelerated animation
+        style={{ transform: `translate3d(${fabPos.x}px, ${fabPos.y}px, 0)`, left: 0, top: 0 }}
+        className={
+          `fixed z-50 bg-primary text-white rounded-full p-3 shadow-lg hover:shadow-2xl focus:outline-none` +
+          (isDragging ? ' transition-none' : ' transition-all duration-300 ease-out')
+        }
+      >
+        <Archive className="h-5 w-5" />
+      </button>
     </div>
   );
 }

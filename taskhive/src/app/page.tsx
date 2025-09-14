@@ -133,7 +133,6 @@ function LandingPageContent() {
       
       <div className="min-h-screen bg-background">        
         <div className={`flex flex-col items-center justify-center h-auto px-4 sm:px-4 md:px-10 lg:px-0 hero-container`}>
-          {/* Logo & Title side by side */}
           <div className={`flex items-center justify-start max-w-full logo-title-container`}>
             <Image
               src="/logo.png"

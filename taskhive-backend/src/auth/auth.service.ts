@@ -186,8 +186,18 @@ export class AuthService {
       if (updateData.due_date !== undefined) {
         updatedData.due_date = updateData.due_date ? new Date(updateData.due_date) : null;
       }
-  if (updateData.status !== undefined && ['In Progress', 'To Review', 'Completed', 'On Hold', 'Request Changes'].includes(updateData.status)) {
+      if (updateData.status !== undefined && ['In Progress', 'To Review', 'Completed', 'On Hold', 'Request Changes'].includes(updateData.status)) {
         updatedData.status = updateData.status;
+      }
+
+      // Support toggling archive state from the frontend
+      if ((updateData as any).archived !== undefined) {
+        updatedData.archived = !!(updateData as any).archived;
+        if ((updateData as any).archived) {
+          updatedData.archived_at = new Date();
+        } else {
+          updatedData.archived_at = null;
+        }
       }
 
       // Update the project

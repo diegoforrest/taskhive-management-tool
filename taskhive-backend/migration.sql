@@ -38,6 +38,8 @@ CREATE TABLE projects (
     status ENUM('In Progress', 'To Review', 'Completed') NOT NULL DEFAULT 'In Progress',
     due_date DATE NULL,
     progress INT NOT NULL DEFAULT 0,
+    archived TINYINT(1) NOT NULL DEFAULT 0,
+    archived_at DATETIME(6) NULL,
     createdAt DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     updatedAt DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     -- user_id should be INT to match users.user_id

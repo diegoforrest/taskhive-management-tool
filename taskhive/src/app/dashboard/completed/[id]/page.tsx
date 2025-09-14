@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Calendar, Gauge, CheckCircle, Flame, Leaf, CircleCheckBig, User } from 'lucide-react';
+import { ArrowLeft, Calendar, Gauge, CheckCircle, Flame, Leaf, CircleCheckBig, User, CalendarCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -171,37 +171,37 @@ export default function CompletedPage() {
 
 	if (loading) return <div className="p-6">Loading completed hive...</div>;
 
-		return (
-			<div className="min-h-screen bg-background">
-				{/* Navbar/header - inline on small screens */}
-				<div className="border-b bg-white dark:bg-gray-900 px-4 sm:px-6 py-4">
-					<div className="flex items-center gap-3 flex-wrap lg:flex-nowrap lg:justify-between">
-						<div className="flex items-center gap-3">
+	return (
+		<div className="min-h-screen bg-background">
+			{/* Navbar/header - inline on small screens */}
+			<div className="border-b bg-white dark:bg-gray-900 px-4 sm:px-6 py-4">
+				<div className="flex items-center gap-3 flex-wrap lg:flex-nowrap lg:justify-between">
+					<div className="flex items-center gap-3">
 
-							<h1 className="text-sm sm:text-base lg:text-2xl font-bold whitespace-nowrap">Completed Hive</h1>
+						<h1 className="text-sm sm:text-base lg:text-2xl font-bold whitespace-nowrap">Completed Hive</h1>
 
-							<div className="flex items-center gap-2 text-xs text-muted-foreground whitespace-nowrap">
-								<Calendar className="h-3 w-3" />
-								<span className="text-xs font-medium">{completedDate}</span>
-							</div>
-
-							<div className="flex items-center gap-2 text-sm">
-								<span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 ${
-									project?.priority === 'High' ? 'bg-red-100 text-red-700' : 
-									project?.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 
-									'bg-gray-100 text-gray-700'
-								}`}>
-									{project?.priority === 'High' && <Flame className="h-3 w-3" aria-hidden />}
-									{project?.priority === 'Medium' && <Gauge className="h-3 w-3" aria-hidden />}
-									{project?.priority === 'Low' && <Leaf className="h-3 w-3" aria-hidden />}
-									<span className="hidden lg:inline">{project?.priority}</span>
-								</span>
-								<span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 bg-green-100 text-green-700">
-									<CircleCheckBig className="h-3 w-3" />
-									<span className="hidden lg:inline">Completed</span>
-								</span>
-							</div>
+						<div className="flex items-center gap-2 text-xs text-muted-foreground whitespace-nowrap">
+							<CalendarCheck className="h-3 w-3" />
+							<span className="text-xs font-medium">{completedDate}</span>
 						</div>
+
+						<div className="flex items-center gap-2 text-sm">
+							<span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+								project?.priority === 'High' ? 'bg-red-100 text-red-700' : 
+								project?.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 
+								'bg-gray-100 text-gray-700'
+							}`}>
+								{project?.priority === 'High' && <Flame className="h-3 w-3" aria-hidden />}
+								{project?.priority === 'Medium' && <Gauge className="h-3 w-3" aria-hidden />}
+								{project?.priority === 'Low' && <Leaf className="h-3 w-3" aria-hidden />}
+								<span className="hidden lg:inline">{project?.priority}</span>
+							</span>
+							<span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 bg-green-100 text-green-700">
+								<CircleCheckBig className="h-3 w-3" />
+								<span className="hidden lg:inline">Completed</span>
+							</span>
+						</div>
+					</div>
 				</div>
 			</div>
 
@@ -230,14 +230,14 @@ export default function CompletedPage() {
 													</div>
 													{t.contents && <p className="text-sm text-muted-foreground line-clamp-2">{t.contents}</p>}
 													<div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
-																					{t.assignee && (
-																						<div className="flex items-center gap-2">
-																							<div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-medium flex-shrink-0">
-																								<User className="h-3 w-3 sm:h-4 sm:w-4" aria-hidden />
-																							</div>
-																							<span className="text-sm">{t.assignee}</span>
-																						</div>
-																					)}
+														{t.assignee && (
+															<div className="flex items-center gap-2">
+																<div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-medium flex-shrink-0">
+																	<User className="h-3 w-3 sm:h-4 sm:w-4" aria-hidden />
+																</div>
+																<span className="text-sm">{t.assignee}</span>
+															</div>
+														)}
 														{t.due_date && (
 															<div className="flex items-center gap-1">
 																<Calendar className="h-3 w-3" />
@@ -298,11 +298,11 @@ export default function CompletedPage() {
 									<div>
 										<div className="text-xs text-muted-foreground">Owner:</div>
 										<div className="flex items-center gap-2 mt-1">
-																	<Avatar className="h-8 w-8">
-	                                                                    <AvatarFallback>{getInitials(getOwnerFullName() || project?.name || user?.email || String(project?.user_id || user?.user_id || 'U'))}</AvatarFallback>
-																	</Avatar>
+											<Avatar className="h-8 w-8">
+												<AvatarFallback>{getInitials(getOwnerFullName() || project?.name || user?.email || String(project?.user_id || user?.user_id || 'U'))}</AvatarFallback>
+											</Avatar>
 											<div>
-										<div className="font-medium">{getOwnerFullName() || (project?.name ? project.name.split(' ')[0] : user?.email?.split('@')[0] || 'Owner')}</div>
+												<div className="font-medium">{getOwnerFullName() || (project?.name ? project.name.split(' ')[0] : user?.email?.split('@')[0] || 'Owner')}</div>
 												<div className="text-xs text-muted-foreground">{project?.status || 'Completed'}</div>
 											</div>
 										</div>

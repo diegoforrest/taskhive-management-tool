@@ -314,7 +314,6 @@ export default function ProfilePage() {
               </Dialog>
             </div>
 
-            {/* change-password notifications now use react-hot-toast (global Toaster) */}
           </div>
         </Card>
     </div>

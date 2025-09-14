@@ -176,6 +176,7 @@ export const authApi = {
     priority?: string;
     due_date?: string;
     status?: string;
+    archived?: boolean;
   }): Promise<ApiResponse<Project>> => {
     console.log('Real API update project request:', { projectId, updateData });
     

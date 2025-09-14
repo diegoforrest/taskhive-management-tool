@@ -98,10 +98,8 @@ export default function ProjectPage() {
           </div>
         </div>
 
-        {/* Desktop/tablet header: hide on xs, show on sm+ (original layout preserved) */}
         <div className="hidden sm:flex sm:flex-row sm:items-center sm:justify-between gap-3 lg:gap-0">
           <div className="flex flex-row items-center gap-3 sm:gap-4 lg:gap-6">
-            {/* Back button intentionally removed to simplify header */}
             <h1 className="text-xl sm:text-2xl font-bold">Task Hive</h1>
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm">
               <div className="flex items-center gap-2">
@@ -110,25 +108,34 @@ export default function ProjectPage() {
                 <span className="font-medium">{project ? formatProjectDue(project.due_date) : (loading ? 'Loading...' : 'No due date')}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 ${
-                  project?.priority === 'High' ? 'bg-red-100 text-red-700' : 
-                   project?.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 
-                  'bg-gray-100 text-gray-700'
-                }`}>
+                <span
+                  aria-label={`Priority: ${project?.priority ?? 'Unknown'}`}
+                  className={`text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 ${
+                    project?.priority === 'High' ? 'bg-red-100 text-red-700' : 
+                    project?.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 
+                    'bg-gray-100 text-gray-700'
+                  }`}
+                >
                   {project?.priority === 'High' && <Flame className="inline h-3 w-3" aria-hidden />}
                   {project?.priority === 'Medium' && <Gauge className="inline h-3 w-3" aria-hidden />}
                   {project?.priority === 'Low' && <Leaf className="inline h-3 w-3" aria-hidden />}
-                  <span className="sr-only">Priority: {project?.priority ?? 'Unknown'}</span>
+                  {/* visible label only on large desktop (>=1499px) */}
+                  <span className="hidden min-[1499px]:inline ml-1">{project?.priority ?? ''}</span>
                 </span>
-                <span className={`text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 ${
-                  project?.status === 'Completed' ? 'bg-green-100 text-green-700' :
-                   project?.status === 'In Progress' ? 'bg-blue-100 text-blue-700' : 
-                  'bg-gray-100 text-gray-700'
-                }`}>
+
+                <span
+                  aria-label={`Status: ${project?.status ?? 'Unknown'}`}
+                  className={`text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 ${
+                    project?.status === 'Completed' ? 'bg-green-100 text-green-700' :
+                    project?.status === 'In Progress' ? 'bg-blue-100 text-blue-700' : 
+                    'bg-gray-100 text-gray-700'
+                  }`}
+                >
                   {project?.status === 'Completed' ? <CheckCircle className="h-3 w-3" /> :
                    project?.status === 'In Progress' ? <Rocket className="h-3 w-3" /> :
                    <Clock className="h-3 w-3" />}
-                  <span className="sr-only">Status: {project?.status ?? 'Unknown'}</span>
+                  {/* visible label only on large desktop (>=1499px) */}
+                  <span className="hidden min-[1499px]:inline ml-1">{project?.status ?? ''}</span>
                 </span>
               </div>
             </div>

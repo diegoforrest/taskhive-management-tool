@@ -38,6 +38,12 @@ export class Project {
   @Column({ type: 'int', default: 0 })
   progress: number;
 
+  @Column({ type: 'boolean', default: false })
+  archived: boolean;
+
+  @Column({ type: 'datetime', nullable: true })
+  archived_at?: Date;
+
   @CreateDateColumn()
   createdAt: Date;
 
