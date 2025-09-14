@@ -24,9 +24,9 @@ import { AuthModule } from './auth/auth.module';
         const logging = configService.get('NODE_ENV') === 'development';
 
         const sslEnabled = (configService.get('DB_SSL') || 'false').toString().toLowerCase() === 'true';
-  let extra: any = undefined;
+        let extra: any = undefined;
 
-  if (sslEnabled) {
+        if (sslEnabled) {
           const caEnv = configService.get('DB_SSL_CA');
           const caPath = configService.get('DB_SSL_CA_PATH');
           let caValue: Buffer | undefined;
@@ -44,14 +44,6 @@ import { AuthModule } from './auth/auth.module';
           } else {
             extra = { ssl: true };
           }
-        }
-
-        // Serverless-friendly pool size (MySQL connectionLimit)
-        const poolSize = parseInt(configService.get('DB_POOL_SIZE', '10')) || 10
-        if (extra) {
-          extra = { ...extra, connectionLimit: poolSize }
-        } else {
-          extra = { connectionLimit: poolSize }
         }
 
         return {
