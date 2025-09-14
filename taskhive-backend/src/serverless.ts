@@ -34,6 +34,49 @@ export default async function handler(req: any, res: any) {
       res.end(JSON.stringify({ status: 'ok' }))
       return
     }
+    // quick DB connectivity test endpoint
+    if (url === '/dbtest') {
+      try {
+        // dynamic require to avoid top-level dependency issues
+        const mysql = require('mysql2/promise')
+        const host = process.env.DB_HOST
+        const port = process.env.DB_PORT || '3306'
+        const user = process.env.DB_USERNAME
+        const password = process.env.DB_PASSWORD
+        const database = process.env.DB_NAME
+
+        // Log presence of env vars (not values)
+        // eslint-disable-next-line no-console
+        console.log('DB env present:', {
+          hasHost: !!host,
+          hasUser: !!user,
+          hasPassword: !!password,
+          hasDatabase: !!database,
+        })
+
+        if (!host || !user || !database) {
+          res.statusCode = 400
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ ok: false, error: 'Missing DB env vars (DB_HOST/DB_USERNAME/DB_NAME)' }))
+          return
+        }
+
+        const conn = await mysql.createConnection({ host, port: Number(port), user, password, database })
+        const [rows] = await conn.query('SELECT 1 as v')
+        await conn.end()
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({ ok: true, rows }))
+        return
+      } catch (dbErr) {
+        // eslint-disable-next-line no-console
+        console.error('DB test failed:', dbErr && dbErr.stack ? dbErr.stack : dbErr)
+        res.statusCode = 500
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({ ok: false, error: (dbErr && dbErr.message) || String(dbErr) }))
+        return
+      }
+    }
   } catch (e) {
     // ignore health path parse errors
   }
