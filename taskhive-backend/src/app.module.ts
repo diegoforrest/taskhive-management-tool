@@ -29,6 +29,7 @@ import { AuthModule } from './auth/auth.module';
         if (sslEnabled) {
           const caEnv = configService.get('DB_SSL_CA');
           const caPath = configService.get('DB_SSL_CA_PATH');
+          console.log('[DB] sslEnabled=', sslEnabled, 'caEnvPresent=', !!caEnv, 'caPath=', caPath);
           const rejectEnv = (configService.get('DB_SSL_REJECT_UNAUTHORIZED') || 'true').toString().toLowerCase();
           const rejectUnauthorized = rejectEnv === 'true';
           let caValue: Buffer | undefined;
@@ -37,8 +38,18 @@ import { AuthModule } from './auth/auth.module';
             // handle both literal newlines and escaped \n
             const normalized = caEnv.includes('\\n') ? caEnv.replace(/\\n/g, '\n') : caEnv.replace(/\r?\n/g, '\n');
             caValue = Buffer.from(normalized);
-          } else if (caPath && fs.existsSync(caPath)) {
-            caValue = fs.readFileSync(caPath);
+          } else if (caPath) {
+            // Log whether the secret file exists at the expected Render path
+            try {
+              const exists = fs.existsSync(caPath);
+              console.log('[DB] CA path exists:', caPath, exists);
+              if (exists) {
+                caValue = fs.readFileSync(caPath);
+                console.log('[DB] CA file loaded, bytes=', caValue.length);
+              }
+            } catch (e) {
+              console.warn('[DB] Error checking/reading CA path', caPath, e && e.message);
+            }
           }
 
           if (caValue) {
