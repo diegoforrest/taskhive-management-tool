@@ -12,12 +12,24 @@ async function bootstrap() {
     : [];
   const allowedOrigins = envOrigins.length ? envOrigins : defaultOrigins;
 
+  // Production-ready CORS: use an origin function so we can support multiple exact origins
+  // while still allowing credentialed requests (credentials: true requires echoing the Origin)
   app.enableCors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      // Non-browser requests (curl, server-to-server) often have no origin
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      console.warn('Blocked CORS request from origin:', origin);
+      return callback(new Error('Not allowed by CORS'));
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   });
+
+  console.log('Allowed CORS origins:', allowedOrigins);
 
   // Enable global validation pipes
   app.useGlobalPipes(new ValidationPipe({
