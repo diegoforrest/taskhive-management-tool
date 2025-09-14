@@ -9,55 +9,67 @@ function LandingPageContent() {
   return (
     <>
       <style jsx>{`
-        /* Mobile First (default styles are for mobile) */
-        .hero-container {
-          padding-top: 15rem;
+        /* Mobile first (default styles are for mobile) */
+        :global(html), :global(body) {
+          height: auto;
+          overflow: auto;
         }
-        
+
+        .hero-container {
+          min-height: 100vh;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding-top: 0;
+        }
+
         .logo-title-container {
+          display: flex;
           flex-direction: row;
           align-items: center;
           gap: 0;
           margin-left: -1.5rem;
         }
+
         .logo-image {
           width: 48px;
           height: 48px;
           margin-right: 0.5rem;
-          
         }
+
         .main-title {
           font-size: 2rem;
           text-align: left;
           margin: 0;
           margin-left: -1.1rem;
         }
-        
+
         .tagline {
           font-size: 1rem;
           margin-left: 0;
           margin-top: -1.25rem;
           text-align: center;
         }
-        
+
         .buttons-container {
+          display: flex;
           flex-direction: column;
           margin-left: 0;
-          max-width: 20rem;
+          max-width: 15rem;
+          gap: 0.75rem;
         }
-        
+
         .button-base {
           width: 100%;
           font-size: 0.875rem;
+          padding: 0.5rem 1rem;
         }
 
         /* Small screens and up (640px+) */
-  @media (min-width: 640px) {
+        @media (min-width: 640px) {
           .logo-title-container {
             margin-left: -2.5rem;
-          }
-          .hero-container {
-            padding-top: 12rem;
           }
           .logo-image {
             width: 64px;
@@ -65,7 +77,6 @@ function LandingPageContent() {
           }
           .main-title {
             font-size: 2.5rem;
-            text-align: left;
             margin-left: -0.5rem;
           }
           .tagline {
@@ -77,18 +88,17 @@ function LandingPageContent() {
             flex-direction: row;
             margin-left: 0;
             max-width: 28rem;
+            gap: 1rem;
           }
           .button-base {
             width: auto;
             font-size: 1rem;
+            padding: 0.625rem 1.25rem;
           }
         }
 
         /* Medium screens and up (768px+) */
         @media (min-width: 768px) {
-          .hero-container {
-            padding-top: 10rem;
-          }
           .logo-image {
             width: 80px;
             height: 80px;
@@ -101,9 +111,10 @@ function LandingPageContent() {
 
         /* Large screens and up (1024px+) */
         @media (min-width: 1024px) {
-          .hero-container {
-            padding-top: 18rem;
-            margin: 0 auto;
+          /* Prevent vertical scrolling on desktop and lock to viewport */
+          :global(body) {
+            overflow: hidden;
+            height: 100vh;
           }
           .logo-image {
             width: 100px;
@@ -112,6 +123,10 @@ function LandingPageContent() {
           .main-title {
             font-size: 3.5rem;
             margin-left: -1rem;
+          }
+          .buttons-container {
+            gap: 1.25rem;
+            flex-wrap: nowrap;
           }
         }
       `}</style>

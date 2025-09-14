@@ -3,13 +3,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Clock, CheckCircle, XCircle, Pause, MessageSquare, Calendar, User, ArrowLeft, Flame, Gauge, Leaf, PlayCircle } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Pause, MessageSquare, Calendar, User, ArrowLeft, Flame, Gauge, Leaf, PlayCircle, Funnel, Plus } from 'lucide-react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 import { tasksApi, Task, authApi, Project } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from 'react-hot-toast';
@@ -270,6 +276,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
   }, [redirecting]);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [reviewFilter, setReviewFilter] = useState<'all' | 'approved' | 'pending' | 'changes_requested' | 'on_hold'>('all');
+  
 
   // Load tasks that need review - always from backend with persistence
   const loadTasksForReview = async (): Promise<TaskWithReviews[]> => {
@@ -547,6 +554,8 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
     return () => { mounted = false; };
   }, [selectedTaskForHistory, selectedTaskForReview, user]);
 
+  // Dropdown open/close handled by Radix DropdownMenu component
+
   const formatReviewDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { 
@@ -626,59 +635,63 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
     <div className="min-h-screen bg-background">
       {/* Review Header */}
       <div className="border-b bg-white dark:bg-gray-900 px-4 sm:px-6 py-4">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-0">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 lg:gap-6">
-            <Button variant="ghost" size="sm" asChild className="w-fit">
-              <Link href="/dashboard?tab=review">
-                <ArrowLeft className="h-4 w-4 mr-1" />
-                <span className="hidden sm:inline">Back to Dashboard</span>
-                <span className="sm:hidden">Back</span>
-              </Link>
-            </Button>
+  <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
             
             {isProjectSpecific && currentProject ? (
               <>
-                <h1 className="text-xl sm:text-2xl font-bold">Review Hive</h1>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">Due:</span>
-                        {
-                          (() => {
-                            const pd = getProjectString(currentProject, ['due', 'dueDate', 'due_date']);
-                            return (
-                              <span className="font-medium">{pd ? formatReviewDate(pd) : 'No due date'}</span>
-                            );
-                          })()
-                        }
+                {/* keep title+date together on a single inline row and prevent them from shrinking so badges take truncation priority */}
+                <div className="flex items-center gap-2 min-w-0 flex-shrink-0">
+                  <h1 className="text-sm [@media(min-width:769px) and (max-width:1080px)]:text-base lg:text-2xl font-semibold truncate">Review Hive</h1>
+
+                  {/* small separator */}
+                  <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-muted-foreground opacity-40" aria-hidden></span>
+
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0">
+                    <Calendar className="h-3 w-3 [@media(min-width:769px) and (max-width:1080px)]:h-4 [@media(min-width:769px) and (max-width:1080px)]:w-4 lg:h-4 lg:w-4" />
+                    <span className="hidden [@media(min-width:769px) and (max-width:1080px)]:inline lg:inline text-muted-foreground">Due:</span>
+                    {
+                      (() => {
+                        const pd = getProjectString(currentProject, ['due', 'dueDate', 'due_date']);
+                        return (
+                          <span className="font-xs">{pd ? formatReviewDate(pd) : 'No due date'}</span>
+                        );
+                      })()
+                    }
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 ${
-                      currentProject.priority === 'High' ? 'bg-red-100 text-red-700' : 
-                      currentProject.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 
-                      'bg-gray-100 text-gray-700'
-                    }`}>
-                      {currentProject.priority === 'High' && <Flame className="inline h-3 w-3" aria-hidden />}
-                      {currentProject.priority === 'Medium' && <Gauge className="inline h-3 w-3" aria-hidden />}
-                      {currentProject.priority === 'Low' && <Leaf className="inline h-3 w-3" aria-hidden />}
-                      {currentProject.priority}
-                    </span>
-                    <span className="text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 bg-purple-100 text-purple-700">
-                      <PlayCircle className="h-3 w-3" />
-                      To Review
-                    </span>
-                  </div>
+                </div>
+
+                {/* badges live in a separate container that can shrink and truncate when space is tight */}
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={`text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 max-w-[7rem] overflow-hidden truncate shrink ${
+                    currentProject.priority === 'High' ? 'bg-red-100 text-red-700' : 
+                    currentProject.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 
+                    'bg-gray-100 text-gray-700'
+                  }`}>
+                    {currentProject.priority === 'High' && <Flame className="inline h-3 w-3" aria-hidden />}
+                    {currentProject.priority === 'Medium' && <Gauge className="inline h-3 w-3" aria-hidden />}
+                    {currentProject.priority === 'Low' && <Leaf className="inline h-3 w-3" aria-hidden />}
+                    {/* label hidden on xs, visible from sm+; sr-only for xs */}
+                    <span className="hidden sm:inline truncate">{currentProject.priority}</span>
+                    <span className="sr-only sm:hidden">Priority: {currentProject.priority}</span>
+                  </span>
+                  <span className="text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 bg-purple-100 text-purple-700 max-w-[6rem] overflow-hidden truncate shrink">
+                    <PlayCircle className="h-3 w-3" />
+                    <span className="hidden sm:inline truncate">To Review</span>
+                    <span className="sr-only sm:hidden">To Review</span>
+                  </span>
                 </div>
               </>
             ) : (
               <>
-                <h1 className="text-xl sm:text-2xl font-bold">Review Hive</h1>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm">
+                <h1 className="text-base [@media(min-width:769px) and (max-width:1080px)]:text-2xl lg:text-3xl font-bold">Review Hive</h1>
+                <div className="flex items-center gap-2 text-sm truncate">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 bg-blue-100 text-blue-700">
                       <CheckCircle className="h-3 w-3" />
-                      <span className="hidden sm:inline">Status: </span>
-                      Team Review Center
+                      {/* show full label from sm+, sr-only on xs */}
+                      <span className="hidden sm:inline [@media(min-width:769px) and (max-width:1080px)]:inline lg:inline">Team Review Center</span>
+                      <span className="sr-only sm:hidden">Team Review Center</span>
                     </span>
                   </div>
                 </div>
@@ -687,18 +700,19 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
           </div>
 
           {/* Approve Project button */}
-          <div className="ml-2">
+          <div className="flex-shrink-0">
             {isProjectSpecific && currentProject && (
               <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
                 <DialogTrigger asChild>
-                  <Button 
-                    className={`${allProjectApproved ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-gray-200 text-gray-600 cursor-not-allowed'}`}
+                  <Button
+                    size="sm"
+                    className={`${allProjectApproved ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-gray-200 text-gray-600 cursor-not-allowed'} px-2 py-1 text-xs`}
                     disabled={submitting || !allProjectApproved}
                     title={allProjectApproved ? 'Approve this project' : 'All tasks must be approved before approving the project'}
                   >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    <span className="hidden sm:inline">Approve Project</span>
-                    <span className="sm:hidden">Approve</span>
+                    <CheckCircle className="h-4 w-4 [@media(min-width:769px) and (max-width:1080px)]:mr-2.5 lg:mr-2.5" />
+                    <span className="hidden [@media(min-width:769px) and (max-width:1080px)]:inline lg:inline">Approve Project</span>
+                    {/* icon-only on xs/md; full label appears at lg+ */}
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-md">
@@ -763,54 +777,63 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+  <div className="grid grid-cols-2 sm:grid-cols-2 [@media(min-width:769px) and (max-width:1080px)]:grid-cols-4 lg:grid-cols-4 gap-2">
           <Card className={`cursor-pointer transition-all ${reviewFilter === 'pending' ? 'ring-2 ring-blue-700' : 'hover:shadow-md'}`} 
                 onClick={() => setReviewFilter('pending')}>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <Clock className="h-5 w-5 text-blue-700" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Pending Review</p>
-                  <p className="text-2xl font-bold text-blue-700">{stats.pending}</p>
+            <CardContent className="p-2">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-blue-700" />
+                <div className="truncate">
+                  <p className="text-xs text-muted-foreground [@media(min-width:769px) and (max-width:1080px)]:text-sm lg:text-sm">
+                    <span className="inline [@media(min-width:769px) and (max-width:1080px)]:hidden lg:hidden">Pending</span>
+                    <span className="hidden [@media(min-width:769px) and (max-width:1080px)]:inline lg:inline">Pending Review</span>
+                  </p>
+                  <p className="text-sm [@media(min-width:769px) and (max-width:1080px)]:text-2xl font-bold text-blue-700 truncate lg:text-2xl">{stats.pending}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className={`cursor-pointer transition-all ${reviewFilter === 'approved' ? 'ring-2 ring-green-700' : 'hover:shadow-md'}`}
-                onClick={() => setReviewFilter('approved')}>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <CheckCircle className="h-5 w-5 text-green-700" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Approved</p>
-                  <p className="text-2xl font-bold text-green-700">{stats.approved}</p>
+          <Card className={`cursor-pointer transition-all ${reviewFilter === 'approved' ? 'ring-2 ring-green-700' : 'hover:shadow-md'}`} onClick={() => setReviewFilter('approved')}>
+            <CardContent className="p-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-700" />
+                <div className="truncate">
+                  <p className="text-xs text-muted-foreground [@media(min-width:769px) and (max-width:1080px)]:text-sm lg:text-sm">
+                    <span className="inline [@media(min-width:769px) and (max-width:1080px)]:hidden lg:hidden">Approved</span>
+                    <span className="hidden [@media(min-width:769px) and (max-width:1080px)]:inline lg:inline">Approved</span>
+                  </p>
+                  <p className="text-sm [@media(min-width:769px) and (max-width:1080px)]:text-2xl font-bold text-green-700 truncate lg:text-2xl">{stats.approved}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className={`cursor-pointer transition-all ${reviewFilter === 'changes_requested' ? 'ring-2 ring-red-700' : 'hover:shadow-md'}`}
-                onClick={() => setReviewFilter('changes_requested')}>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <XCircle className="h-5 w-5 text-red-700" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Changes Requested</p>
-                  <p className="text-2xl font-bold text-red-700">{stats.changesRequested}</p>
+          <Card className={`cursor-pointer transition-all ${reviewFilter === 'changes_requested' ? 'ring-2 ring-red-700' : 'hover:shadow-md'}`} onClick={() => setReviewFilter('changes_requested')}>
+            <CardContent className="p-2">
+              <div className="flex items-center gap-2">
+                <XCircle className="h-4 w-4 text-red-700" />
+                <div className="truncate">
+                  <p className="text-xs text-muted-foreground [@media(min-width:769px) and (max-width:1080px)]:text-sm lg:text-sm">
+                    <span className="inline [@media(min-width:769px) and (max-width:1080px)]:hidden lg:hidden">Changes</span>
+                    <span className="hidden [@media(min-width:769px) and (max-width:1080px)]:inline lg:inline">Changes Requested</span>
+                  </p>
+                  <p className="text-sm [@media(min-width:769px) and (max-width:1080px)]:text-2xl font-bold text-red-700 truncate lg:text-2xl">{stats.changesRequested}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className={`cursor-pointer transition-all ${reviewFilter === 'on_hold' ? 'ring-2 ring-orange-500' : 'hover:shadow-md'}`}
-                onClick={() => setReviewFilter('on_hold')}>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <Pause className="h-5 w-5 text-orange-400" />
-                <div>
-                  <p className="text-sm text-muted-foreground">On Hold</p>
-                  <p className="text-2xl font-bold text-orange-400">{stats.onHold}</p>
+          <Card className={`cursor-pointer transition-all ${reviewFilter === 'on_hold' ? 'ring-2 ring-orange-500' : 'hover:shadow-md'}`} onClick={() => setReviewFilter('on_hold')}>
+            <CardContent className="p-2">
+              <div className="flex items-center gap-2">
+                <Pause className="h-4 w-4 text-orange-400" />
+                <div className="truncate">
+                  <p className="text-xs text-muted-foreground [@media(min-width:769px) and (max-width:1080px)]:text-sm lg:text-sm">
+                    <span className="inline [@media(min-width:769px) and (max-width:1080px)]:hidden lg:hidden">On Hold</span>
+                    <span className="hidden [@media(min-width:769px) and (max-width:1080px)]:inline lg:inline">On Hold</span>
+                  </p>
+                  <p className="text-sm [@media(min-width:769px) and (max-width:1080px)]:text-2xl font-bold text-orange-400 truncate lg:text-2xl">{stats.onHold}</p>
                 </div>
               </div>
             </CardContent>
@@ -819,44 +842,91 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
 
         {/* Filter Controls */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
             <h3 className="text-lg font-semibold">Tasks for Review</h3>
-            <div className="flex items-center gap-2">
-              <Button
-                variant={reviewFilter === 'all' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setReviewFilter('all')}
-              >
-                All ({tasksForReview.length})
-              </Button>
-              <Button
-                variant={reviewFilter === 'pending' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setReviewFilter('pending')}
-              >
-                Pending ({stats.pending})
-              </Button>
-              <Button
-                variant={reviewFilter === 'approved' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setReviewFilter('approved')}
-              >
-                Approved ({stats.approved})
-              </Button>
-              <Button
-                variant={reviewFilter === 'changes_requested' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setReviewFilter('changes_requested')}
-              >
-                Changes Requested ({stats.changesRequested})
-              </Button>
-              <Button
-                variant={reviewFilter === 'on_hold' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setReviewFilter('on_hold')}
-              >
-                On Hold ({stats.onHold})
-              </Button>
+            <div className="flex items-center">
+              {/* Funnel dropdown for small/medium screens */}
+              <div className="relative lg:hidden">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" aria-label="Filter tasks">
+                      <Funnel className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+
+                  <DropdownMenuContent align="center" className="w-40">
+                    <DropdownMenuItem asChild>
+                      <Button variant={reviewFilter === 'all' ? 'default' : 'ghost'} size="sm" className="w-full text-left text-xs" onClick={() => setReviewFilter('all')}>
+                        All ({tasksForReview.length})
+                      </Button>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Button variant={reviewFilter === 'pending' ? 'default' : 'ghost'} size="sm" className="w-full text-left text-xs" onClick={() => setReviewFilter('pending')}>
+                        Pending ({stats.pending})
+                      </Button>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Button variant={reviewFilter === 'approved' ? 'default' : 'ghost'} size="sm" className="w-full text-left text-xs" onClick={() => setReviewFilter('approved')}>
+                        Approved ({stats.approved})
+                      </Button>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Button variant={reviewFilter === 'changes_requested' ? 'default' : 'ghost'} size="sm" className="w-full text-left text-xs" onClick={() => setReviewFilter('changes_requested')}>
+                        Changes Requested ({stats.changesRequested})
+                      </Button>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Button variant={reviewFilter === 'on_hold' ? 'default' : 'ghost'} size="sm" className="w-full text-left text-xs" onClick={() => setReviewFilter('on_hold')}>
+                        On Hold ({stats.onHold})
+                      </Button>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {/* Full buttons shown on large screens */}
+              <div className="hidden [@media(min-width:769px) and (max-width:1080px)]:flex lg:flex items-center gap-2">
+                <Button
+                  variant={reviewFilter === 'all' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setReviewFilter('all')}
+                  title={`All (${tasksForReview.length})`}
+                >
+                  All ({tasksForReview.length})
+                </Button>
+                <Button
+                  variant={reviewFilter === 'pending' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setReviewFilter('pending')}
+                  title={`Pending (${stats.pending})`}
+                >
+                  Pending ({stats.pending})
+                </Button>
+                <Button
+                  variant={reviewFilter === 'approved' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setReviewFilter('approved')}
+                  title={`Approved (${stats.approved})`}
+                >
+                  Approved ({stats.approved})
+                </Button>
+                <Button
+                  variant={reviewFilter === 'changes_requested' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setReviewFilter('changes_requested')}
+                  title={`Changes Requested (${stats.changesRequested})`}
+                >
+                  Changes Requested ({stats.changesRequested})
+                </Button>
+                <Button
+                  variant={reviewFilter === 'on_hold' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setReviewFilter('on_hold')}
+                  title={`On Hold (${stats.onHold})`}
+                >
+                  On Hold ({stats.onHold})
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -872,18 +942,22 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
             ) : (
               <div className="space-y-4">
                 {filteredTasks.map((task) => (
-                  <div key={task.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                  <div key={task.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors overflow-hidden">
                     <div className="flex justify-between items-start mb-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h3 className="font-semibold">{task.title}</h3>
-                          <Badge className={reviewStatusConfig[task.reviewStatus || 'pending'].color}>
-                            {reviewStatusConfig[task.reviewStatus || 'pending'].label}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1 [@media(min-width:769px) and (max-width:1080px)]:gap-2 mb-2">
+                          <h3 className="font-semibold text-sm [@media(min-width:769px) and (max-width:1080px)]:text-base lg:text-base truncate">{task.title}</h3>
+                          <Badge className={`${reviewStatusConfig[task.reviewStatus || 'pending'].color} max-w-[8rem] [@media(min-width:769px) and (max-width:1080px)]:max-w-none lg:max-w-none overflow-hidden` }>
+                            <span className="hidden sm:inline text-xs [@media(min-width:769px) and (max-width:1080px)]:text-sm lg:text-sm truncate whitespace-nowrap">{reviewStatusConfig[task.reviewStatus || 'pending'].label}</span>
+                            <span className="sr-only sm:hidden">{reviewStatusConfig[task.reviewStatus || 'pending'].label}</span>
                           </Badge>
                           {task.needsReview && (
-                            <Badge variant="outline" className="text-white bg-black">
-                              Needs Review
-                            </Badge>
+                            <>
+                              <Badge variant="outline" className="hidden sm:inline [@media(min-width:769px) and (max-width:1080px)]:inline-flex lg:inline-flex text-white bg-black px-2 py-0.5 text-xs max-w-[6rem] [@media(min-width:769px) and (max-width:1080px)]:max-w-none lg:max-w-none overflow-hidden items-center">
+                                <span className="truncate whitespace-nowrap">Needs Review</span>
+                              </Badge>
+                              <span className="sr-only sm:hidden">Needs Review</span>
+                            </>
                           )}
                         </div>
                         
@@ -909,9 +983,9 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                         </div>
                       </div>
 
-                      <div className="flex gap-2">
-                        {/* Review History Button */}
-                        <Button variant="outline" size="sm" onClick={async () => {
+                        <div className="flex gap-1 items-center flex-shrink-0">
+                        {/* Review History Button (icon-only on small/medium, full text on lg) */}
+                        <Button variant="outline" size="sm" className="px-2 py-1 text-xs flex-shrink-0" title={`Feedbacks (${task.reviewNotes ? task.reviewNotes.length : 0})`} onClick={async () => {
                           try {
                             const res = await tasksApi.getChangelogs(task.id);
                             const data = extractDataArray<ChangeLogEntry>(res);
@@ -936,12 +1010,13 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                             setSelectedTaskForHistory(task);
                           }
                         }}>
-                          <MessageSquare className="h-4 w-4 mr-1" />
-                          Feedback's ({task.reviewNotes ? task.reviewNotes.length : 0})
+                          <MessageSquare className="h-3 w-3 [@media(min-width:769px) and (max-width:1080px)]:h-4 [@media(min-width:769px) and (max-width:1080px)]:w-4 lg:h-4 lg:w-4" aria-hidden />
+                          {/* show label in custom medium (769-1080px) and on desktop */}
+                          <span className="hidden [@media(min-width:769px) and (max-width:1080px)]:inline lg:inline [@media(min-width:769px) and (max-width:1080px)]:ml-1 lg:ml-1">Feedback's ({task.reviewNotes ? task.reviewNotes.length : 0})</span>
                         </Button>
 
-                        {/* Add Review Button */}
-                        <Button size="sm" onClick={() => {
+                        {/* Add Review Button: icon-only on small/medium, text on lg */}
+                        <Button size="sm" className="px-2 py-1 text-xs flex-shrink-0" title="Add feedback" onClick={() => {
                           if (suppressDialogOpen) {
                             // prevent reopening while we just submitted feedback and refreshing
                             toast('Please wait while changes are applied');
@@ -951,7 +1026,11 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                           setReviewNotes('');
                           setChangeDetails('');
                           setSelectedAction('approve');
-                        }}>Add feedback</Button>
+                        }}>
+                          {/* Plus icon visible on small only; label shown from md+ */}
+                          <Plus className="h-3 w-3 [@media(min-width:769px) and (max-width:1080px)]:h-4 [@media(min-width:769px) and (max-width:1080px)]:w-4 lg:h-4 lg:w-4 [@media(min-width:769px) and (max-width:1080px)]:hidden lg:hidden" aria-hidden />
+                          <span className="hidden [@media(min-width:769px) and (max-width:1080px)]:inline lg:inline">Add feedback</span>
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -1068,7 +1147,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                   value={reviewNotes}
                   onChange={(e) => setReviewNotes(e.target.value)}
                   placeholder="Provide detailed feedback..."
-                  className="h-20 sm:h-28 md:h-36 lg:h-40 overflow-auto resize-none"
+                  className="h-20 sm:h-28 [@media(min-width:769px) and (max-width:1080px)]:h-36 lg:h-40 overflow-auto resize-none"
                   style={{ resize: 'none' }}
                 />
               </div>
@@ -1080,7 +1159,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                     value={changeDetails}
                     onChange={(e) => setChangeDetails(e.target.value)}
                     placeholder="Describe specific changes that need to be made..."
-                    className="h-20 sm:h-28 md:h-36 lg:h-40 overflow-auto resize-none"
+                    className="h-20 sm:h-28 [@media(min-width:769px) and (max-width:1080px)]:h-36 lg:h-40 overflow-auto resize-none"
                     style={{ resize: 'none' }}
                   />
                 </div>

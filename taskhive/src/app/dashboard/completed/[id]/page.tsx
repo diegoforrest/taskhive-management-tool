@@ -155,64 +155,53 @@ export default function CompletedPage() {
 			}
 		};
 
+		// derive a single completed date string used in header
+		const completedDate = (() => {
+			const completed = projectHistory.slice().filter(h => (h.new_status || '').toLowerCase().includes('completed') || (h.new_status || '').toLowerCase().includes('done'));
+			if (completed.length) {
+				const latest = completed.sort((a,b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime())[0];
+				return formatDate(latest.createdAt || latest.createdAt);
+			}
+			return project?.createdAt ? formatDate(project.createdAt) : 'Unknown';
+		})();
+
 	if (!projectIdParam) {
 		return <div className="p-6">No project id provided</div>;
 	}
 
 	if (loading) return <div className="p-6">Loading completed hive...</div>;
 
-	return (
-		<div className="min-h-screen bg-background">
-			{/* Navbar/header matching review page style */}
-			<div className="border-b bg-white dark:bg-gray-900 px-4 sm:px-6 py-4">
-				<div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-0">
-					<div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 lg:gap-6">
-						<Button variant="ghost" size="sm" asChild className="w-fit">
-							<Link href="/dashboard?tab=completed">
-								<ArrowLeft className="h-4 w-4 mr-1" />
-								<span className="hidden sm:inline">Back to Dashboard</span>
-								<span className="sm:hidden">Back</span>
-							</Link>
-						</Button>
+		return (
+			<div className="min-h-screen bg-background">
+				{/* Navbar/header - inline on small screens */}
+				<div className="border-b bg-white dark:bg-gray-900 px-4 sm:px-6 py-4">
+					<div className="flex items-center gap-3 flex-wrap lg:flex-nowrap lg:justify-between">
+						<div className="flex items-center gap-3">
 
-						<h1 className="text-xl sm:text-2xl font-bold">Completed Hive</h1>
+							<h1 className="text-sm sm:text-base lg:text-2xl font-bold whitespace-nowrap">Completed Hive</h1>
 
-						<div className="flex items-center gap-3 text-sm">
-							<div className="flex items-center gap-2">
-								<Calendar className="h-4 w-4 text-muted-foreground" />
-								<span className="text-muted-foreground">Completed:</span>
-								<span className="font-medium">{
-									// try to infer completed date from project history
-									(() => {
-										const completed = projectHistory.slice().filter(h => (h.new_status || '').toLowerCase().includes('completed') || (h.new_status || '').toLowerCase().includes('done'));
-										if (completed.length) {
-											const latest = completed.sort((a,b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime())[0];
-											return formatDate(latest.createdAt || latest.createdAt);
-										}
-										  return project?.createdAt ? formatDate(project.createdAt) : 'Unknown';
-									})()
-								}</span>
+							<div className="flex items-center gap-2 text-xs text-muted-foreground whitespace-nowrap">
+								<Calendar className="h-3 w-3" />
+								<span className="text-xs font-medium">{completedDate}</span>
 							</div>
 
-							<div className="flex items-center gap-2">
-                    <span className={`text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 ${
-                      project?.priority === 'High' ? 'bg-red-100 text-red-700' : 
-                      project?.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 
-                      'bg-gray-100 text-gray-700'
-                    }`}>
-                      {project?.priority === 'High' && <Flame className="inline h-3 w-3" aria-hidden />}
-                      {project?.priority === 'Medium' && <Gauge className="inline h-3 w-3" aria-hidden />}
-                      {project?.priority === 'Low' && <Leaf className="inline h-3 w-3" aria-hidden />}
-                      {project?.priority}
-                    </span>
-                    <span className="text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 bg-green-100 text-green-700">
-                      <CircleCheckBig className="h-3 w-3" />
-                      Completed
-                    </span>
+							<div className="flex items-center gap-2 text-sm">
+								<span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+									project?.priority === 'High' ? 'bg-red-100 text-red-700' : 
+									project?.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 
+									'bg-gray-100 text-gray-700'
+								}`}>
+									{project?.priority === 'High' && <Flame className="h-3 w-3" aria-hidden />}
+									{project?.priority === 'Medium' && <Gauge className="h-3 w-3" aria-hidden />}
+									{project?.priority === 'Low' && <Leaf className="h-3 w-3" aria-hidden />}
+									<span className="hidden lg:inline">{project?.priority}</span>
+								</span>
+								<span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 bg-green-100 text-green-700">
+									<CircleCheckBig className="h-3 w-3" />
+									<span className="hidden lg:inline">Completed</span>
+								</span>
 							</div>
 						</div>
-					</div>
-
 				</div>
 			</div>
 
@@ -259,8 +248,14 @@ export default function CompletedPage() {
 												</div>
 
 												<div className="flex flex-col gap-2 ml-4">
-													<Button variant="outline" size="sm" onClick={() => openTaskHistory(t)}>
-														Feedback's
+													<Button variant="outline" size="sm" asChild className="w-fit p-0.5 sm:p-2 flex-shrink-0">
+														<button onClick={() => openTaskHistory(t)} className="flex items-center gap-0.5 text-xs sm:text-sm">
+															<svg className="h-3 w-3 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+																<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+															</svg>
+															<span className="hidden sm:inline">Feedback's</span>
+															<span className="sr-only sm:hidden">Feedbacks</span>
+														</button>
 													</Button>
 												</div>
 											</div>

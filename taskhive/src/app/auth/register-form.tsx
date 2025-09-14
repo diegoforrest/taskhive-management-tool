@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { authApi } from "@/lib/api"
 import { TermsOfService } from "@/components/auth/terms-of-service"
@@ -32,6 +33,7 @@ export function RegisterForm() {
     email: "",
     password: "",
     confirmPassword: "",
+    agreeToPrivacy: false,
     agreeToTerms: false,
     subscribeToUpdates: false,
   })
@@ -50,8 +52,8 @@ export function RegisterForm() {
       return
     }
 
-    if (!formData.agreeToTerms) {
-      setError("You must agree to the Terms of Service and Privacy Policy.")
+    if (!formData.agreeToPrivacy || !formData.agreeToTerms) {
+      setError("You must agree to both the Privacy Policy and Terms of Service.")
       setIsLoading(false)
       return
     }
@@ -104,17 +106,18 @@ export function RegisterForm() {
   }
 
   const handleInputChange = (field: string, value: string | boolean) => {
-    // Prevent checking the agreement checkbox if user hasn't viewed both documents
-    if (field === "agreeToTerms" && value === true && (!hasViewedTerms || !hasViewedPrivacy)) {
-      setError("Please read both the Terms of Service and Privacy Policy first.")
+    // Prevent checking each agreement checkbox if its document hasn't been viewed
+    if (
+      (field === "agreeToPrivacy" && value === true && !hasViewedPrivacy) ||
+      (field === "agreeToTerms" && value === true && !hasViewedTerms)
+    ) {
+      setError("Please read the document first before agreeing.")
       return
     }
-    
+
     // Clear error when user starts typing or makes changes
-    if (error) {
-      setError("")
-    }
-    
+    if (error) setError("")
+
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
@@ -253,49 +256,87 @@ export function RegisterForm() {
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2">
+            {/* Privacy checkbox */}
             <div className="flex items-center space-x-2">
-              <Checkbox 
-                id="agreeToTerms"
-                checked={formData.agreeToTerms}
-                onCheckedChange={(checked) => 
-                  handleInputChange("agreeToTerms", checked as boolean)
-                }
-                disabled={!hasViewedTerms || !hasViewedPrivacy}
-                required
-              />
-              <Label htmlFor="agreeToTerms" className="text-sm">
-                I agree to the{" "}
-                <button
-                  type="button"
-                  onClick={() => setShowTerms(true)}
-                  className={`${
-                    hasViewedTerms 
-                      ? 'text-green-600 hover:text-green-700' 
-                      : 'text-primary hover:underline'
-                  } font-medium`}
-                >
-                  Terms of Service
-                  {hasViewedTerms && " ✓"}
-                </button>{" "}
-                and{" "}
+              { !formData.agreeToPrivacy ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <Checkbox
+                        id="agreeToPrivacy"
+                        checked={formData.agreeToPrivacy}
+                        onCheckedChange={(checked) => handleInputChange("agreeToPrivacy", checked as boolean)}
+                        disabled={!hasViewedPrivacy}
+                        required
+                      />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Please read the Privacy Policy</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Checkbox
+                  id="agreeToPrivacy"
+                  checked={formData.agreeToPrivacy}
+                  onCheckedChange={(checked) => handleInputChange("agreeToPrivacy", checked as boolean)}
+                  disabled={!hasViewedPrivacy}
+                  required
+                />
+              )}
+
+              <Label htmlFor="agreeToPrivacy" className="text-sm flex items-center">
+                <span className="text-muted-foreground font-medium">Agree to</span>
                 <button
                   type="button"
                   onClick={() => setShowPrivacy(true)}
-                  className={`${
-                    hasViewedPrivacy 
-                      ? 'text-green-600 hover:text-green-700' 
-                      : 'text-primary hover:underline'
-                  } font-medium`}
+                  className="text-blue-600 hover:underline font-medium"
                 >
                   Privacy Policy
-                  {hasViewedPrivacy && " ✓"}
                 </button>
               </Label>
             </div>
-            
+
+            {/* Terms checkbox */}
+            <div className="flex items-center space-x-2">
+              { !formData.agreeToTerms ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <Checkbox
+                        id="agreeToTerms"
+                        checked={formData.agreeToTerms}
+                        onCheckedChange={(checked) => handleInputChange("agreeToTerms", checked as boolean)}
+                        disabled={!hasViewedTerms}
+                        required
+                      />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Please read the Terms of Service</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Checkbox
+                  id="agreeToTerms"
+                  checked={formData.agreeToTerms}
+                  onCheckedChange={(checked) => handleInputChange("agreeToTerms", checked as boolean)}
+                  disabled={!hasViewedTerms}
+                  required
+                />
+              )}
+
+              <Label htmlFor="agreeToTerms" className="text-sm flex items-center">
+                <span className="text-muted-foreground font-medium">Agree to</span>
+                <button
+                  type="button"
+                  onClick={() => setShowTerms(true)}
+                  className="text-blue-600 hover:underline font-medium"
+                >
+                  Terms and Conditions
+                </button>
+              </Label>
+            </div>
+
             {(!hasViewedTerms || !hasViewedPrivacy) && (
-              <p className="text-xs text-muted-foreground ml-6">
+              <p className="text-xs text-muted-foreground ml-6 block sm:hidden">
                 Please read both documents above before agreeing to the terms
               </p>
             )}
@@ -321,6 +362,8 @@ export function RegisterForm() {
         onOpenChange={setShowTerms}
         onAccept={() => {
           setHasViewedTerms(true)
+          // mark the terms checkbox as checked immediately
+          setFormData(prev => ({ ...prev, agreeToTerms: true }))
         }}
       />
 
@@ -330,10 +373,8 @@ export function RegisterForm() {
         onOpenChange={setShowPrivacy}
         onAccept={() => {
           setHasViewedPrivacy(true)
-          // If both documents have been viewed, automatically check the agreement
-          if (hasViewedTerms) {
-            handleInputChange("agreeToTerms", true)
-          }
+          // mark the privacy checkbox as checked immediately
+          setFormData(prev => ({ ...prev, agreeToPrivacy: true }))
         }}
       />
     </Card>

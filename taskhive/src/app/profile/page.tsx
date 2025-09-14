@@ -211,11 +211,11 @@ export default function ProfilePage() {
   // savingToast auto-hide is handled by the Toast component
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-semibold">Profile</h1>
-      <p className="text-sm text-muted-foreground">View and edit your account details.</p>
+    <div className="p-4 sm:p-6 max-w-3xl mx-auto">
+      <h1 className="text-lg sm:text-2xl font-semibold">Profile</h1>
+      <p className="text-xs sm:text-sm text-muted-foreground">View and edit your account details.</p>
 
-      <Card className="mt-6 p-4">
+      <Card className="mt-4 sm:mt-6 p-3 sm:p-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="text-xs font-medium">First name</label>
@@ -231,7 +231,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-end gap-2">
+        <div className="mt-3 sm:mt-4 flex items-center justify-end gap-2">
           <Button variant="ghost" onClick={() => router.back()}>Cancel</Button>
 
           {/* Save confirmation dialog trigger */}
@@ -259,13 +259,22 @@ export default function ProfilePage() {
 
         {/* Toaster is provided globally in TopBar; profile triggers toasts with react-hot-toast */}
 
-        <Card className="mt-6 p-4">
-          <h2 className="text-lg font-medium">Change password</h2>
-          <div className="mt-3 grid grid-cols-1 gap-3 max-w-md">
+        {/*
+          Prevent browser password autofill: include hidden dummy username/password inputs
+          and set explicit autocomplete attributes on real password fields below.
+        */}
+        <div style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0, overflow: 'hidden' }} aria-hidden>
+          <input name="fake-username" autoComplete="username" tabIndex={-1} />
+          <input name="fake-password" type="password" autoComplete="new-password" tabIndex={-1} />
+        </div>
+
+        <Card className="mt-4 sm:mt-6 p-3 sm:p-4">
+          <h2 className="text-sm sm:text-lg font-medium">Change password</h2>
+          <div className="mt-2 sm:mt-3 grid grid-cols-1 gap-2 sm:gap-3 max-w-md">
             <div>
               <label className="text-xs font-medium">Current password</label>
               <div className="relative">
-                <Input className="w-full pr-10" value={currentPassword} type={showCurrentPassword ? 'text' : 'password'} onChange={(e) => setCurrentPassword(e.target.value)} />
+                <Input className="w-full pr-10 text-sm" value={currentPassword} type={showCurrentPassword ? 'text' : 'password'} onChange={(e) => setCurrentPassword(e.target.value)} autoComplete="current-password" name="current-password" />
                 <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center text-muted-foreground" onClick={() => setShowCurrentPassword(s => !s)} aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}>
                   {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -274,7 +283,7 @@ export default function ProfilePage() {
             <div>
               <label className="text-xs font-medium">New password</label>
               <div className="relative">
-                <Input className="w-full pr-10" value={newPassword} type={showNewPassword ? 'text' : 'password'} onChange={(e) => setNewPassword(e.target.value)} />
+                <Input className="w-full pr-10 text-sm" value={newPassword} type={showNewPassword ? 'text' : 'password'} onChange={(e) => setNewPassword(e.target.value)} autoComplete="new-password" name="new-password" />
                 <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center text-muted-foreground" onClick={() => setShowNewPassword(s => !s)} aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}>
                   {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>

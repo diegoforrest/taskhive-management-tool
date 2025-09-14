@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronDown, List, Plus, Clock, AlertCircle, PlayCircle, CheckCircle, Calendar, Funnel, XCircle, Pause, Flame, Gauge, Leaf, ClockAlert, Rocket, User, BadgeQuestionMark } from "lucide-react";
+import { ChevronDown, List, Plus, Clock, AlertCircle, PlayCircle, CheckCircle, Calendar, Funnel, XCircle, Pause, Flame, Gauge, Leaf, ClockAlert, Rocket, User, BadgeQuestionMark, FolderOpen, MessageSquareCode, CircleCheck } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -471,38 +471,47 @@ export default function DashboardHome() {
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation Bar */}
-  <nav className="w-full border-b bg-white dark:bg-gray-900 px-4 py-3 flex items-center justify-between sticky top-14 z-40">
+  <nav className="w-full border-b bg-white dark:bg-gray-900 px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between sticky top-14 z-40">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-4">
             <button
               onClick={() => changeTab("all")}
-              className={`text-lg font-bold transition-colors ${
+              aria-label="Projects"
+              className={`flex items-center gap-2 text-sm sm:text-base font-bold transition-colors ${
                 activeTab === "all" 
                   ? "text-primary" 
                   : "text-muted-foreground hover:text-primary"
               }`}
             >
-              Projects ({projects.filter(p => getProjectProgress(p.id) < 100 && p.status !== "Completed").length})
+              <span className="sm:hidden inline-flex items-center"><FolderOpen className="h-5 w-5" /></span>
+              <span className="hidden sm:inline">Projects</span>
+              <span className="hidden sm:inline"> ({projects.filter(p => getProjectProgress(p.id) < 100 && p.status !== "Completed").length})</span>
             </button>
             <button
               onClick={() => changeTab("review")}
-              className={`text-lg font-bold transition-colors ${
+              aria-label="Review"
+              className={`flex items-center gap-2 text-sm sm:text-base font-bold transition-colors ${
                 activeTab === "review" 
                   ? "text-primary" 
                   : "text-muted-foreground hover:text-primary"
               }`}
             >
-              Review ({projects.filter(p => getProjectProgress(p.id) === 100 && p.status !== "Completed").length})
+              <span className="sm:hidden inline-flex items-center"><MessageSquareCode className="h-5 w-5" /></span>
+              <span className="hidden sm:inline">Review</span>
+              <span className="hidden sm:inline"> ({projects.filter(p => getProjectProgress(p.id) === 100 && p.status !== "Completed").length})</span>
             </button>
             <button
               onClick={() => changeTab("completed")}
-              className={`text-lg font-bold transition-colors ${
+              aria-label="Completed"
+              className={`flex items-center gap-2 text-sm sm:text-base font-bold transition-colors ${
                 activeTab === "completed" 
                   ? "text-primary" 
                   : "text-muted-foreground hover:text-primary"
               }`}
             >
-              Completed ({projects.filter(p => p.status === "Completed").length})
+              <span className="sm:hidden inline-flex items-center"><CircleCheck className="h-5 w-5" /></span>
+              <span className="hidden sm:inline">Completed</span>
+              <span className="hidden sm:inline"> ({projects.filter(p => p.status === "Completed").length})</span>
             </button>
           </div>
         </div>
@@ -553,50 +562,55 @@ export default function DashboardHome() {
             </DropdownMenuContent>
           </DropdownMenu>
           <Button asChild>
-            <Link href="/dashboard/projects/new">
-              <Plus className="h-4 w-4 mr-2" />
-              Add New Project
+            <Link href="/dashboard/projects/new" className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Add New Project</span>
+              <span className="sm:hidden inline">Task</span>
             </Link>
           </Button>
         </div>
       </nav>
 
-      <main className="p-6">
+      <main className="p-4 sm:p-6">
         {sortedProjects.length > 0 ? (
-          <div className="grid grid-cols-3 gap-6 items-start">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
             {sortedProjects.map((project) => (
-              <div id={`project-${project.id}`} key={project.id} className="project-card bg-white dark:bg-gray-900 rounded-lg shadow p-5 flex flex-col gap-2 border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-primary/20 transition-all duration-200">
+              <div id={`project-${project.id}`} key={project.id} className="project-card bg-white dark:bg-gray-900 rounded-lg shadow p-3 sm:p-5 flex flex-col gap-2 border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-primary/20 transition-all duration-200">
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
                     {project.due_date ? (
                       <div className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3 text-muted-foreground" />
-                        <ClientDate iso={project.due_date} options={{ month: 'short', day: 'numeric', year: 'numeric' }} showOverdueBadge={true} />
+                        <Calendar className="h-3 w-3 text-muted-foreground sm:h-4 sm:w-4 md:h-4 md:w-4" />
+                        <span className="text-[10px] sm:text-xs"><ClientDate iso={project.due_date} options={{ month: 'short', day: 'numeric', year: 'numeric' }} showOverdueBadge={true} /></span>
                       </div>
                     ) : (
-                      <span className="text-xs text-muted-foreground">No due date</span>
+                      <span className="text-[10px] sm:text-xs text-muted-foreground">No due date</span>
                     )}
-                    <span className={`text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 ${
+                    <span className={`text-[10px] sm:text-xs font-semibold px-2 py-0.5 sm:py-1 rounded-full flex items-center gap-1 ${
                       project.priority === 'High' ? 'bg-red-100 text-red-700' : 
                       project.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 
                       'bg-gray-100 text-gray-700'
                     }`}>
-                      {project.priority === 'High' && <Flame className="inline h-3 w-3" aria-hidden />}
-                      {project.priority === 'Medium' && <Gauge className="inline h-3 w-3" aria-hidden />}
-                      {project.priority === 'Low' && <Leaf className="inline h-3 w-3" aria-hidden />}
-                      {project.priority}
+                      {/* Icon always visible; text label hidden on smallest screens and shown at >= sm */}
+                      {project.priority === 'High' && <Flame className="inline h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-3.5 md:w-3.5" aria-hidden />}
+                      {project.priority === 'Medium' && <Gauge className="inline h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-3.5 md:w-3.5" aria-hidden />}
+                      {project.priority === 'Low' && <Leaf className="inline h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-3.5 md:w-3.5" aria-hidden />}
+                      <span className="sr-only">Priority: {project.priority}</span>
+                      <span className="hidden [@media(min-width:1499px)]:inline">{project.priority}</span>
                     </span>
-                    <span className={`text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 ${
+                    <span className={`text-[10px] sm:text-xs font-semibold px-2 py-0.5 sm:py-1 rounded-full flex items-center gap-1 ${
                       project.status === "Completed" ? 'bg-green-100 text-green-700' :
                       getProjectStatus(project.id) === "To Review" ? 'bg-purple-100 text-purple-700' :
                       getProjectStatus(project.id) === "In Progress" ? 'bg-blue-100 text-blue-700' :
                       'bg-gray-100 text-gray-700'
                     }`}>
-                      {project.status === "Completed" ? <CheckCircle className="h-3 w-3" /> :
-                       getProjectStatus(project.id) === "To Review" ? <PlayCircle className="h-3 w-3" /> :
-                       getProjectStatus(project.id) === "In Progress" ? <Rocket className="h-3 w-3" /> :
-                       <ClockAlert className="h-3 w-3" />}
-                      {project.status === "Completed" ? "Completed" : getProjectStatus(project.id)}
+                      {/* Status icon always visible; text label hidden on smallest screens and shown at >= sm */}
+                      {project.status === "Completed" ? <CheckCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-3.5 md:w-3.5" /> :
+                       getProjectStatus(project.id) === "To Review" ? <PlayCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-3.5 md:w-3.5" /> :
+                       getProjectStatus(project.id) === "In Progress" ? <Rocket className="h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-3.5 md:w-3.5" /> :
+                       <ClockAlert className="h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-3.5 md:w-3.5" />}
+                      <span className="sr-only">{project.status === "Completed" ? "Completed" : getProjectStatus(project.id)}</span>
+                      <span className="hidden [@media(min-width:1499px)]:inline">{project.status === "Completed" ? "Completed" : getProjectStatus(project.id)}</span>
                     </span>
                   </div>
                   {activeTab === "all" && (
@@ -621,10 +635,10 @@ export default function DashboardHome() {
                   } 
                   className="cursor-pointer flex flex-col flex-1"
                 >
-                  <h2 className="text-lg font-bold mb-1 truncate hover:text-primary transition-colors">
+                  <h2 className="text-sm sm:text-lg font-bold mb-1 truncate hover:text-primary transition-colors">
                     {project.name || 'Unnamed Project'}
                   </h2>
-                  <p className="text-sm text-muted-foreground mb-3 truncate">
+                  <p className="text-[12px] sm:text-sm text-muted-foreground mb-3 truncate">
                     {project.description || 'No description'}
                   </p>
                   
@@ -696,7 +710,7 @@ export default function DashboardHome() {
                 </Link>
                 
                 {/* Tasks Dropdown */}
-        <details className="w-full" onClick={(e) => e.stopPropagation()} onToggle={(e) => handleDetailsToggle(project.id, e)}>
+                <details className="w-full" onClick={(e) => e.stopPropagation()} onToggle={(e) => handleDetailsToggle(project.id, e)}>
                   <summary className="flex items-center justify-between cursor-pointer text-sm mb-2">
                     <span className="font-medium">Tasks ({getTaskStats(project.id).total})</span>
           <ChevronDown className={`h-4 w-4 transform transition-transform duration-150 ${detailsOpenMap[project.id] ? 'rotate-0' : '-rotate-90'}`} />

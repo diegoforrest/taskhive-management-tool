@@ -248,7 +248,7 @@ export function TopBar() {
           <SidebarTrigger className="-ml-1" />
 
           {/* Right side: theme toggle, search, user menu */}
-          <div className="flex items-center gap-1 sm:gap-2 md:gap-4">
+          <div className="flex items-center gap-1 sm:gap-2 [@media(min-width:769px) and (max-width:1080px)]:gap-4">
             {/* Theme Dropdown */}
             {mounted && (
               <DropdownMenu>
@@ -306,7 +306,7 @@ export function TopBar() {
                 {/* Hide text on small screens, show on sm and up */}
                 <span className="hidden sm:inline text-sm font-normal">Search</span>
                 {/* Show keyboard shortcut only on md and up */}
-                <kbd className="hidden md:ml-2 md:inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-60 group-hover:opacity-100 transition-opacity">
+                <kbd className="hidden [@media(min-width:769px) and (max-width:1080px)]:ml-2 [@media(min-width:769px) and (max-width:1080px)]:inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-60 group-hover:opacity-100 transition-opacity">
                   <span className="text-xs">⌘</span>K
                 </kbd>
               </Button>
