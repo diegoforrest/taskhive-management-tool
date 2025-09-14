@@ -40,9 +40,11 @@ import { AuthModule } from './auth/auth.module';
           }
 
           if (caValue) {
-            extra = { ssl: { ca: caValue } };
+            // mysql2/typeorm accept the CA as a string (PEM). Ensure we pass a utf8 string
+            extra = { ssl: { ca: caValue.toString('utf8') } };
           } else {
-            extra = { ssl: true };
+            // Do not pass boolean true — mysql2 expects an object for ssl profile
+            extra = { ssl: {} };
           }
         }
 
