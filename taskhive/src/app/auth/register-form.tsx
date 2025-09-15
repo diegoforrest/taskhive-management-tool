@@ -146,9 +146,7 @@ export function RegisterForm() {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+            <p className="text-sm text-destructive/90">{error}</p>
           )}
 
           <div className="grid grid-cols-2 gap-4">
@@ -289,9 +287,8 @@ export function RegisterForm() {
                 <button
                   type="button"
                   onClick={() => setShowPrivacy(true)}
-                  className="text-blue-600 hover:underline font-medium"
-                >
-                  Privacy Policy
+                  className="text-blue-600 hover:underline font-medium -ml-1"
+                >Privacy Policy
                 </button>
               </Label>
             </div>
@@ -323,14 +320,13 @@ export function RegisterForm() {
                 />
               )}
 
-              <Label htmlFor="agreeToTerms" className="text-sm flex items-center">
+              <Label htmlFor="agreeToTerms" className="text-sm flex -,items-center">
                 <span className="text-muted-foreground font-medium">Agree to</span>
                 <button
                   type="button"
                   onClick={() => setShowTerms(true)}
-                  className="text-blue-600 hover:underline font-medium"
-                >
-                  Terms and Conditions
+                  className="text-blue-600 hover:underline font-medium -ml-1"
+                >Terms and Conditions
                 </button>
               </Label>
             </div>

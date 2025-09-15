@@ -202,7 +202,7 @@ export function PrivacyPolicy({ open, onOpenChange, onAccept }: PrivacyPolicyPro
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
           >
-            {canContinue ? '✓ Accept Privacy Policy' : 'Please scroll to bottom to continue'}
+            {canContinue ? 'Accept Privacy Policy' : 'Please scroll to bottom to continue'}
           </Button>
         </DialogFooter>
       </DialogContent>

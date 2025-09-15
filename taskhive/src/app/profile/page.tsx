@@ -274,7 +274,19 @@ export default function ProfilePage() {
             <div>
               <label className="text-xs font-medium">Current password</label>
               <div className="relative">
-                <Input className="w-full pr-10 text-sm" value={currentPassword} type={showCurrentPassword ? 'text' : 'password'} onChange={(e) => setCurrentPassword(e.target.value)} autoComplete="current-password" name="current-password" />
+                <Input
+                  className="w-full pr-10 text-sm"
+                  value={currentPassword}
+                  type={showCurrentPassword ? 'text' : 'password'}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  autoComplete="off"
+
+                  data-lpignore="true"
+                  name="_current_pwd"
+
+                  readOnly
+                  onFocus={(e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.readOnly = false; }}
+                />
                 <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center text-muted-foreground" onClick={() => setShowCurrentPassword(s => !s)} aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}>
                   {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>

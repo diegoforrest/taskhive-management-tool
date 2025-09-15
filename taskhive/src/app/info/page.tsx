@@ -6,11 +6,11 @@ export default function LearnMorePage() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="w-full bg-white dark:bg-gray-900 shadow p-6 flex flex-col items-center">
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 text-center">Learn More About TaskHive</h1>
-        <p className="text-base sm:text-lg text-muted-foreground text-center max-w-4xl">Stay organized without the clutter of team apps—plan side projects, schoolwork, or personal goals with ease. Drag and drop tasks to keep planning effortless and clear.</p>
+    <h1 className="text-1xl sm:text-2xl md:text-3xl font-bold mb-2 text-center">Learn More About TaskHive</h1>
+  <p className="text-xs sm:text-base md:text-lg text-muted-foreground text-center max-w-2xl">Stay organized without the clutter of team apps—plan side projects, schoolwork, or personal goals with ease. Drag and drop tasks to keep planning effortless and clear.</p>
       </header>
  
-    <main className="flex-1 w-full max-w-5xl mx-auto px-4 py-10">
+    <main className="flex-1 w-full max-w-5xl mx-auto px-4 py-5">
   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
           <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-3 md:p-4 lg:p-6 flex flex-col items-center">
             <h2 className="text-sm md:text-lg lg:text-xl font-semibold mb-1 md:mb-2">Overview</h2>
@@ -26,13 +26,13 @@ export default function LearnMorePage() {
           </div>
         </div>
       </main>
-      <section className="w-full bg-muted/5 border-t mt-6">
-        <div className="max-w-5xl mx-auto px-4 py-12">
-          <h2 className="text-2xl font-semibold mb-3">Demo & Playground</h2>
-          <p className="text-muted-foreground mb-4">Watch the quick demo of TaskHive’s core features, this section highlights overall functionality</p>
+      <section className="w-full bg-muted/5 border-t">
+        <div className="max-w-5xl mx-auto px-4 py-5">
+          <h2 className="text-1xl sm:text-2xl md:text-3xl font-bold mb-2 text-center">Demo & Playground</h2>
+          <p className="text-xs sm:text-base md:text-lg text-muted-foreground text-center mb-6">Watch the quick demo of TaskHive’s core features, this section highlights overall functionality</p>
             <div className="w-full aspect-video rounded-md overflow-hidden shadow mb-4">
               <iframe
-                src="https://www.youtube.com/embed/MBZA6TfHGc4"
+                src="https://www.youtube.com/embed/eFFkzfVNn0U"
                 title="TaskHive demo"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen

@@ -12,7 +12,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { authApi } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 
@@ -161,14 +160,10 @@ export function SignInForm() {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           {successMessage && (
-            <Alert className="border-green-200 bg-green-50 text-green-800">
-              <AlertDescription>{successMessage}</AlertDescription>
-            </Alert>
+            <p className="text-sm text-green-700">{successMessage}</p>
           )}
           {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+            <p className="text-sm text-destructive/90">{error}</p>
           )}
           
           <div className="space-y-2">

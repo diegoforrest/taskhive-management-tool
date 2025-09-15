@@ -45,107 +45,98 @@
 
 :root {
   --radius: 0.625rem;
-  /* Breakpoints (keep in sync with src/lib/breakpoints.ts)
-    --bp-sm is 640px (small), --bp-mobile is 768px (medium), --bp-tablet is 1024px (large) */
   --bp-sm: 640px;
   --bp-mobile: 768px;
   --bp-tablet: 1024px;
   --bp-desktop: 1280px;
   --bp-large: 1440px;
-  /* Theme provided by user */
-  --background: #F2F2F2; /* light gray */
-  --foreground: #262F40; /* deep slate */
-  --black: #0D0D0D;
-  --card: #FFFFFF;
-  --card-foreground: #262F40;
-  --popover: #FFFFFF;
-  --popover-foreground: #262F40;
-  --primary: #F28705; /* vibrant orange */
-  --primary-foreground: #F2F2F2;
-  --secondary: #A6652D; /* brown/amber */
-  --secondary-foreground: #F2F2F2;
-  --muted: #FFFFFF;
-  --muted-foreground: #314259;
-  --accent: #A6652D;
-  --accent-foreground: #F2F2F2;
-  --destructive: #D64500;
-  --border: #E6E6E6;
-  --input: #FFFFFF;
-  --ring: #F28705;
-  --chart-1: #F28705;
-  --chart-2: #A6652D;
-  --chart-3: #314259;
-  --chart-4: #262F40;
-  --chart-5: #F2F2F2;
-  --sidebar: #FFFFFF;
-  --sidebar-foreground: #314259;
-  --sidebar-primary: #314259;
-  --sidebar-primary-foreground: #F2F2F2;
-  --sidebar-accent: #F2F2F2;
-  --sidebar-accent-foreground: #314259;
-  --sidebar-border: #E6E6E6;
-  --sidebar-ring: #F28705;
+
+
+  --background: #FAFAFB; /* soft off-white background to reduce glare */
+  --foreground: #0B1220; /* near-black for strong headings */
+  --card: #FFFFFF; /* surface cards remain white */
+  --card-foreground: #0B1220; /* card text */
+  --popover: #FFFFFF; /* popovers */
+  --popover-foreground: #0B1220;
+  --primary: #0B1220; /* primary text/buttons */
+  --primary-foreground: #FFFFFF; /* text on primary backgrounds */
+  --secondary: oklch(0.95 0 0); /* subtle light secondary */
+  --secondary-foreground: oklch(0.3 0 0); /* readable secondary labels */
+  --muted: oklch(0.95 0 0);
+  --muted-foreground: #475569; /* muted text for forms and helper text */
+  /* Accent kept as brand orange for emphasis */
+  --accent: #F2F2F2; /* very light accent surface */
+  --accent-foreground: #e08835; /* brand accent */
+  --destructive: oklch(0.577 0.245 27.325); /* warning */
+  --border: #E6E8EB; /* subtle border */
+  --input: #F8FAFC; /* input background */
+  --ring: #e08835; /* input ring */
+  /* Sidebar tokens tuned for light mode */
+  --sidebar: #F7F8FA; /* slightly off-white sidebar */
+  --sidebar-foreground: #0B1220; /* sidebar text */
+  --sidebar-primary: #E6EEF6; /* selected/active sidebar bg */
+  --sidebar-primary-foreground: #0B1220; /* selected text */
+  --sidebar-accent: #F2F2F2; /* hover surface */
+  --sidebar-accent-foreground: #e08835; /* hover text color */
+  --sidebar-border: #E6E6E6; /* sidebar border */
+  --sidebar-ring: #e08835; /* sidebar focus ring */
 }
 
 .dark {
-  /* Dark theme variant using user's palette */
-  --background: #262F40;
-  --foreground: #F2F2F2;
-  --black: #0D0D0D;
-  --card: #314259;
-  --card-foreground: #F2F2F2;
-  --popover: #314259;
-  --popover-foreground: #F2F2F2;
-  --primary: #F28705;
-  --primary-foreground: #262F40;
-  --secondary: #A6652D;
-  --secondary-foreground: #F2F2F2;
-  --muted: #314259;
-  --muted-foreground: #F2F2F2;
-  --accent: #A6652D;
-  --accent-foreground: #F2F2F2;
-  --destructive: #D64500;
+  --background: #0B0C0D; /* near-black for app background */
+  --foreground: #F3F4F6; /* light text */
+  --card: #0F1112; /* slightly lighter than background for surface separation */
+  --card-foreground: #F3F4F6;
+  --popover: #0F1112;
+  --popover-foreground: #F3F4F6;
+  --primary: #F3F4F6; /* primary (text-on-dark) */
+  --primary-foreground: #0B0C0D; /* text color when primary backgrounds are used */
+  /* Use slightly muted but readable oklch values for secondary/muted */
+  --secondary: oklch(0.13 0.01 232); /* subtle gray-blue on dark */
+  --secondary-foreground: oklch(0.92 0 42); /* lighter for labels */
+  --muted: oklch(0.14 0.01 232);
+  --muted-foreground: #D1D5DB;
+  /* Keep accent and ring consistent with light theme */
+  --accent: #1F2937; /* dark accent surface */
+  --accent-foreground: #e08835;
+  --destructive: oklch(0.64 0.22 27); /* slightly brighter on dark */
   --border: rgba(255,255,255,0.06);
   --input: rgba(255,255,255,0.06);
-  --ring: #F28705;
-  --chart-1: #F28705;
-  --chart-2: #A6652D;
-  --chart-3: #314259;
-  --chart-4: #262F40;
-  --chart-5: #F2F2F2;
-  --sidebar: #262F40;
-  --sidebar-foreground: #F2F2F2;
-  --sidebar-primary: #314259;
-  --sidebar-primary-foreground: #F2F2F2;
-  --sidebar-accent: #262F40;
-  --sidebar-accent-foreground: #F2F2F2;
-  --sidebar-border: #1F2937;
+  --ring: #e08835;
+  /* Sidebar colors tuned for dark */
+  --sidebar: #0B0C0D;
+  --sidebar-foreground: #E6EEF6;
+  --sidebar-primary: #22313A;
+  --sidebar-primary-foreground: #F3F4F6;
+  --sidebar-accent: #0F1112;
+  --sidebar-accent-foreground: #e08835;
+  --sidebar-border: rgba(255,255,255,0.06);
   --sidebar-ring: #F28705;
 }
 
 @layer base {
   :root {
-    --sidebar: #FFFFFF;
+    /* Mirror the top-level light palette for sidebar tokens */
+    --sidebar: #F2F2F2;
     --sidebar-foreground: #314259;
-    --sidebar-primary: #314259;
-    --sidebar-primary-foreground: #F2F2F2;
-    --sidebar-accent: #F2F2F2;
-    --sidebar-accent-foreground: #314259;
+    --sidebar-primary: hsl(240 5.9% 10%);
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #f5f5f5;
+    --sidebar-accent-foreground: #e08835;
     --sidebar-border: #E6E6E6;
     --sidebar-ring: #F28705;
-    --black: #0D0D0D;
   }
 
   .dark {
-    --sidebar: #262F40;
-    --sidebar-foreground: #F2F2F2;
-    --sidebar-primary: #314259;
-    --sidebar-primary-foreground: #F2F2F2;
-    --sidebar-accent: #262F40;
-    --sidebar-accent-foreground: #F2F2F2;
+    /* Mirror the improved dark palette for sidebar tokens */
+    --sidebar: #0B0C0D;
+    --sidebar-foreground: #E6EEF6;
+    --sidebar-primary: #22313A;
+    --sidebar-primary-foreground: #F3F4F6;
+    --sidebar-accent: #0F1112;
+    --sidebar-accent-foreground: #F3F4F6;
     --sidebar-border: rgba(255,255,255,0.06);
     --sidebar-ring: #F28705;
-    --black: #0D0D0D;
   }
 }
 

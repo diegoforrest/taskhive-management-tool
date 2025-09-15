@@ -122,20 +122,20 @@ const columns: Column[] = [
   {
     id: 'Todo',
     title: 'TO DO',
-    color: 'border-l-gray-400',
-    bgColor: 'bg-gray-50'
+    color: 'border-l-gray-400 dark:border-l-gray-600',
+    bgColor: 'bg-gray-50 dark:bg-gray-900'
   },
   {
     id: 'In Progress', 
     title: 'IN PROGRESS',
-  color: 'border-l-blue-500',
-  bgColor: 'bg-blue-50'
+  color: 'border-l-blue-500 dark:border-l-blue-400',
+  bgColor: 'bg-blue-50 dark:bg-blue-900'
   },
   {
     id: 'Done',
     title: 'DONE',
-  color: 'border-l-green-500',
-  bgColor: 'bg-green-50'
+  color: 'border-l-green-500 dark:border-l-green-400',
+  bgColor: 'bg-green-50 dark:bg-green-900'
   }
 ];
 
@@ -535,14 +535,14 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
               id={columnId}
               className={`${column.bgColor} rounded-lg border-l-4 ${column.color}`}
             >
-              <div className="p-3 sm:p-4 border-b border-gray-200">
+              <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700">
                 <div className="flex items-center justify-between mb-2">
-                  <h2 className="font-bold text-base sm:text-lg text-gray-800">
+                  <h2 className="font-bold text-base sm:text-lg text-gray-800 dark:text-gray-100">
                     {column.title}
                   </h2>
                 </div>
                 
-                <div className="flex space-x-2 text-xs sm:text-sm text-gray-600">
+                <div className="flex space-x-2 text-xs sm:text-sm text-gray-600 dark:text-gray-300">
                   <span>
                     {getTasksByStatus(column.id).filter(item => item.type === 'project').length} Projects
                   </span>
@@ -596,8 +596,8 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
                   ))}
                   
               {getTasksByStatus(column.id).length === 0 && showNewItemForm !== column.id && (
-                    <div className="flex flex-col items-center justify-center py-8 sm:py-12 text-muted-foreground">
-                      <p className="text-sm mb-2">No items yet</p>
+                    <div className="flex flex-col items-center justify-center py-8 sm:py-12 text-muted-foreground dark:text-gray-300">
+                      <p className="text-sm mb-2 dark:text-gray-300">No items yet</p>
                       <Button 
                         variant="ghost" 
                         size="sm"
@@ -665,7 +665,7 @@ const TaskCard = ({ item, isDragging, isHighlighted = false, onEdit, onDelete, o
         onDragStart(e, item);
       }}
       onDragEnd={onDragEnd}
-      className={`mb-2 sm:mb-3 p-3 sm:p-4 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-all duration-200 ${
+      className={`mb-2 sm:mb-3 p-3 sm:p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-all duration-200 ${
         isMouseInDescription ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
       } group select-none ${
         isDragging ? 'opacity-50 scale-105' : 'hover:scale-[1.01]'
@@ -1009,7 +1009,7 @@ const NewItemForm = ({ columnId, onCancel, onAdd }: NewItemFormProps) => {
   };
 
   return (
-    <div className="mb-2 sm:mb-3 p-3 sm:p-4 bg-white border-2 border-dashed border-gray-300 rounded-lg">
+  <div className="mb-2 sm:mb-3 p-3 sm:p-4 bg-white dark:bg-gray-800 border-2 border-dashed border-gray-300 dark:border-dashed dark:border-gray-700 rounded-lg">
       <div className="space-y-3">
         <div className="w-full sm:w-1/3">
           <Select 

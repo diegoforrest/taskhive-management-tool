@@ -942,7 +942,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
             ) : (
               <div className="space-y-4">
                 {filteredTasks.map((task) => (
-                  <div key={task.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors overflow-hidden">
+                  <div key={task.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors overflow-hidden">
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1 [@media(min-width:769px) and (max-width:1080px)]:gap-2 mb-2">
@@ -1052,7 +1052,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
           </DialogHeader>
 
           <div className="space-y-4 max-h-96 overflow-y-auto">
-            {currentHistory.length > 0 ? (
+                {currentHistory.length > 0 ? (
               currentHistory.map((review) => {
                 const actionConfig = reviewActionConfig[review.action];
                 const IconComponent = actionConfig.icon;
@@ -1069,26 +1069,26 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                     : '!text-orange-400';
 
                 return (
-                  <div key={review.id} className="border rounded-lg p-4">
+                  <div key={review.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                     <div className="flex items-start gap-3">
                       <div className={`p-2 rounded-full ${actionConfig.bgColor && actionConfig.bgColor.startsWith('!') ? actionConfig.bgColor : '!' + actionConfig.bgColor}`}>
                         <IconComponent className={`h-4 w-4 ${iconClass}`} />
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
-                          <span className="font-medium">{review.reviewerName}</span>
+                          <span className="font-medium text-gray-900 dark:text-gray-100">{review.reviewerName}</span>
                           <Badge className={badgeClass}>
                             {actionConfig.label}
                           </Badge>
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs text-muted-foreground dark:text-gray-400">
                             {formatReviewDate(review.timestamp)}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-700">{review.notes}</p>
+                        <p className="text-sm text-gray-700 dark:text-gray-200">{review.notes}</p>
                         {review.changeDetails && review.action === 'request_changes' && (
-                          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
-                            <p className="text-xs font-medium text-red-700 mb-1">Changes Required:</p>
-                            <p className="text-sm text-red-600">{review.changeDetails}</p>
+                          <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded">
+                            <p className="text-xs font-medium text-red-700 dark:text-red-300 mb-1">Changes Required:</p>
+                            <p className="text-sm text-red-600 dark:text-red-200">{review.changeDetails}</p>
                           </div>
                         )}
                       </div>

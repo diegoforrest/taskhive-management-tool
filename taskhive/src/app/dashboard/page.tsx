@@ -635,8 +635,8 @@ export default function DashboardHome() {
               aria-label="Projects"
               className={`flex items-center gap-2 text-sm sm:text-base font-bold transition-colors ${
                 activeTab === "all" 
-                  ? "text-primary" 
-                  : "text-muted-foreground hover:text-primary"
+                  ? "text-[#e08835]" 
+                  : "text-muted-foreground hover:text-[#e08835]"
               }`}
             >
               <span className="sm:hidden inline-flex items-center"><FolderOpen className="h-5 w-5" /></span>
@@ -648,8 +648,8 @@ export default function DashboardHome() {
               aria-label="Review"
               className={`flex items-center gap-2 text-sm sm:text-base font-bold transition-colors ${
                 activeTab === "review" 
-                  ? "text-primary" 
-                  : "text-muted-foreground hover:text-primary"
+                  ? "text-[#e08835]" 
+                  : "text-muted-foreground hover:text-[#e08835]"
               }`}
             >
               <span className="sm:hidden inline-flex items-center"><MessageSquareCode className="h-5 w-5" /></span>
@@ -661,8 +661,8 @@ export default function DashboardHome() {
               aria-label="Completed"
               className={`flex items-center gap-2 text-sm sm:text-base font-bold transition-colors ${
                 activeTab === "completed" 
-                  ? "text-primary" 
-                  : "text-muted-foreground hover:text-primary"
+                  ? "text-[#e08835]" 
+                  : "text-muted-foreground hover:text-[#e08835]"
               }`}
             >
               <span className="sm:hidden inline-flex items-center"><CircleCheck className="h-5 w-5" /></span>
@@ -1091,12 +1091,6 @@ export default function DashboardHome() {
               </div>
             )}
           </div>
-
-          <DialogFooter>
-            <div className="flex justify-end w-full">
-              <Button variant="ghost" className="font-semibold" onClick={() => setArchiveDialogOpen(false)}>Close</Button>
-            </div>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1111,9 +1105,9 @@ export default function DashboardHome() {
             <p className="text-sm text-muted-foreground">Are you sure you want to archive this project?</p>
           </div>
           <DialogFooter>
-            <div className="flex gap-2">
+              <div className="flex gap-2">
               <Button variant="ghost" className="font-semibold" onClick={() => { setConfirmArchiveOpen(false); setConfirmTargetId(null); }}>Cancel</Button>
-              <Button className="bg-red-600 text-white font-semibold" onClick={() => confirmArchive()}>Archive</Button>
+              <Button className="bg-red-600 hover:bg-red-700 text-white font-semibold" onClick={() => confirmArchive()}>Archive</Button>
             </div>
           </DialogFooter>
         </DialogContent>
@@ -1135,14 +1129,16 @@ export default function DashboardHome() {
             draggingRef.current.origY = fabPos.y;
           } catch (_err) {}
         }}
-        // position using transform for smoother GPU-accelerated animation
-        style={{ transform: `translate3d(${fabPos.x}px, ${fabPos.y}px, 0)`, left: 0, top: 0 }}
+  // position using transform for smoother GPU-accelerated animation
+  // position using transform for smoother GPU-accelerated animation
+  style={{ transform: `translate3d(${fabPos.x}px, ${fabPos.y}px, 0)`, left: 0, top: 0, backgroundColor: 'rgba(0,0,0,0.85)' }}
         className={
-          `fixed z-50 bg-primary text-white rounded-full p-3 shadow-lg hover:shadow-2xl focus:outline-none` +
-          (isDragging ? ' transition-none' : ' transition-all duration-300 ease-out')
+          `fixed z-50 rounded-full p-3 shadow-lg focus:outline-none` +
+          (isDragging ? ' transition-none' : ' transition-all duration-300 ease-out hover:shadow-2xl')
         }
       >
-        <Archive className="h-5 w-5" />
+        {/* Icon color fixed to white to stand out on translucent black background */}
+        <Archive className="h-5 w-5" style={{ color: '#ffffff' }} />
       </button>
     </div>
   );

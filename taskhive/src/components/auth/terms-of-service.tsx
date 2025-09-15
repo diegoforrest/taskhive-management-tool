@@ -117,6 +117,7 @@ export function TermsOfService({ open, onOpenChange, onAccept }: TermsOfServiceP
               onOpenChange(false)
             }} 
             variant="default"
+            className="bg-green-600 hover:bg-green-700 text-white"
           >
             I Understand
           </Button>
