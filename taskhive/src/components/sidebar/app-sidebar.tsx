@@ -336,7 +336,7 @@ export function AppSidebar() {
               height={40}
               className="rounded"
             />
-            <div className="grid flex-1 text-left text-sm leading-tight">
+            <div className="grid flex-1 text-left text-sm leading-tight -ml-1">
               <span className="truncate font-bold text-xl transition-all duration-200 ease-in-out group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:w-0 group-data-[state=collapsed]:overflow-hidden">taskHive</span>
             </div>
           </Link>

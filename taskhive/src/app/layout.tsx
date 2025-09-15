@@ -13,8 +13,8 @@ import { SearchProvider } from "@/lib/search-context"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "TaskHive - Project Management Tool",
-  description: "Modern project management and collaboration platform",
+  title: "TaskHive",
+  description: "TaskHive",
 }
 
 export default async function RootLayout({
