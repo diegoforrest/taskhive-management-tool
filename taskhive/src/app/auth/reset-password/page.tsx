@@ -38,7 +38,7 @@ export default function ResetPasswordPage() {
           toast.error(body?.message || 'Invalid or expired token')
           setValidState('invalid')
         }
-      } catch (e: any) {
+      } catch {
         toast.error('Failed to validate token')
         setValidState('invalid')
       }
@@ -66,16 +66,11 @@ export default function ResetPasswordPage() {
       toast.success((res as any)?.message || 'Password reset successful')
       // Navigate to sign-in
       router.push('/auth/sign-in')
-    } catch (err: any) {
-      console.error('Reset error', err)
-      const msg = err?.message || 'Failed to reset password'
+    } catch {
+      // Error details intentionally ignored here (handled via toast)
+      const msg = 'Failed to reset password'
       // If token invalid/expired, show friendly UI
-      if (String(msg).toLowerCase().includes('invalid') || String(msg).toLowerCase().includes('expired') || String(msg).toLowerCase().includes('missing')) {
-        toast.error(msg)
-        // show a friendly help view by redirecting to /auth/forgot-password or render additional info
-        router.push('/auth/forgot-password')
-        return
-      }
+      // If token invalid/expired, redirect to request a new link
       toast.error(msg)
     } finally {
       setIsSubmitting(false)

@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Calendar, Settings, Trash2, Archive } from "lucide-react";
+import { ArrowLeft, Settings, Trash2, Archive } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { authApi } from "@/lib/api";
@@ -110,9 +110,7 @@ export default function EditProjectPage() {
     
     setIsDeleting(true);
     try {
-      console.log("Deleting project:", projectId);
-      
-  const rawResponse = await authApi.deleteProject(parseInt(projectId));
+      const rawResponse = await authApi.deleteProject(parseInt(projectId));
   const response = (rawResponse && typeof rawResponse === 'object' && 'success' in (rawResponse as Record<string, unknown>)) ? (rawResponse as unknown as Record<string, unknown>) : { success: true, data: rawResponse };
 
       if (response.success) {

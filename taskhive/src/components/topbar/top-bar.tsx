@@ -22,11 +22,10 @@ import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
+import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { useAuth } from "@/lib/auth-context"
-import { useSearch } from "@/lib/search-context"
-import { tasksApi, authApi } from "@/lib/api"
+import { authApi } from "@/lib/api"
   // Lightweight UI-facing project shape used for search results
   type ProjectLike = {
     id: number;
@@ -45,7 +44,6 @@ export function TopBar() {
   React.useEffect(() => { setMounted(true); }, []);
   const { theme, setTheme } = useTheme()
   const { user, logout, isAuthenticated } = useAuth()
-  const { setHighlightedTaskId } = useSearch()
   const router = useRouter()
   const [searchOpen, setSearchOpen] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState("")
@@ -82,27 +80,7 @@ export function TopBar() {
     return `User ${user.user_id}`
   }
 
-  // Get user initials for avatar fallback
-  const getUserInitials = () => {
-    if (!user) return 'G'
-    
-    // Use firstName and lastName if available
-    if (user.firstName && user.lastName) {
-      return (user.firstName[0] + user.lastName[0]).toUpperCase()
-    }
-    
-    // Use email if firstName/lastName not available
-    if (user.email) {
-      const parts = user.email.split('@')[0].split('.')
-      if (parts.length >= 2) {
-        return (parts[0][0] + parts[1][0]).toUpperCase()
-      }
-      return user.email.substring(0, 2).toUpperCase()
-    }
-    
-    // Fallback to user_id
-    return user.user_id.toString().substring(0, 2).toUpperCase() || 'U'
-  }
+  // user initials helper removed (not used)
 
   // Handle keyboard shortcuts
   React.useEffect(() => {
@@ -225,7 +203,7 @@ export function TopBar() {
       params.set('projectId', String(project.id));
       params.set('tab', tab);
       router.push(`/dashboard?${params.toString()}`);
-    } catch (e) {
+    } catch {
       router.push('/dashboard');
     }
   }

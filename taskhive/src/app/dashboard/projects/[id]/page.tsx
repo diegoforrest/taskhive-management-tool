@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Calendar, Settings, CheckCircle, AlertCircle, PlayCircle, Clock, Flame, Gauge, Leaf, Rocket } from "lucide-react";
+import { Calendar, Settings, CheckCircle, Clock, Flame, Gauge, Leaf, Rocket } from "lucide-react";
 import EnhancedKanbanBoard from "@/components/task/enhanced-kanban-board";
 import { authApi, Project } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -21,7 +21,7 @@ export default function ProjectPage() {
     if (!due) return 'No due date';
     try {
       return new Date(due).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    } catch (e) {
+    } catch {
       return due;
     }
   };
@@ -39,10 +39,10 @@ export default function ProjectPage() {
     else if (res && typeof res === 'object' && (res as Record<string, unknown>).hasOwnProperty('success') && (res as Record<string, unknown>).hasOwnProperty('data')) data = (res as Record<string, unknown>).data;
     else data = res;
   if (mounted) setProject((data as Project) || null);
-      } catch (e) {
-        console.warn('Failed to fetch project', e);
-        if (mounted) setProject(null);
-      } finally {
+      } catch {
+          console.warn('Failed to fetch project');
+          if (mounted) setProject(null);
+        } finally {
         if (mounted) setLoading(false);
       }
     })();

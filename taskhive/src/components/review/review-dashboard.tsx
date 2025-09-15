@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { Clock, CheckCircle, XCircle, Pause, MessageSquare, Calendar, User, ArrowLeft, Flame, Gauge, Leaf, PlayCircle, Funnel, Plus } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Pause, MessageSquare, Calendar, User, Flame, Gauge, Leaf, PlayCircle, Funnel, Plus } from 'lucide-react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -342,10 +341,10 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
                 needsReview = mapped.needsReview;
                 lastReviewAction = mapped.lastReviewAction;
               }
-            } catch {
-              console.warn('Failed to fetch changelogs for task', task.id);
-              // Keep default values if changelog fetch fails
-            }
+                    } catch {
+                      console.warn('Failed to fetch changelogs for task', task.id);
+                      // Keep default values if changelog fetch fails
+                    }
 
             tasksAcc.push({
               id: Number(task.id),
@@ -460,7 +459,7 @@ export default function ReviewDashboard({ reviewProjects = [] }: ReviewDashboard
   };
   const handleProjectApproval = async (projectId: number): Promise<boolean> => {
     try {
-      console.log(`Approving entire project ${projectId}`);
+      // Approve entire project: update tasks and create a project-level changelog
       
       const projectTasks = tasksForReview.filter(task => task.projectId === projectId);
 

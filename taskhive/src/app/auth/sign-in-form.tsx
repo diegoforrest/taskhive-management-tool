@@ -1,19 +1,19 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react"
-import Link from "next/link"
-import Image from 'next/image'
+import * as React from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react";
+import Link from "next/link";
+import Image from 'next/image';
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
-import { authApi } from "@/lib/api"
-import { useAuth } from "@/lib/auth-context"
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { authApi } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 export function SignInForm() {
   const [showPassword, setShowPassword] = useState(false)
@@ -74,21 +74,15 @@ export function SignInForm() {
     }
 
     try {
-      console.log('=== LOGIN ATTEMPT ===');
-      console.log('Using email as user_id:', formData.email);
-      
+      // Attempt login via API
       const response = await authApi.login({
         user_id: formData.email, // Using email as user_id for login
         password: formData.password
       })
-      
-      console.log('Login response:', response);
-      
-      if (response.success && response.user) {
-        console.log('Login successful, user data:', response.user);
-        console.log('User ID from login:', response.user.user_id);
-        console.log('User ID type:', typeof response.user.user_id);
-        
+
+      // If login succeeded, persist credentials (optional) and set user in context
+      if (response && (response as any).success && (response as any).user) {
+        const respUser = (response as any).user;
         // Handle Remember Me functionality
         if (formData.rememberMe) {
           // Save credentials to localStorage
@@ -104,19 +98,19 @@ export function SignInForm() {
 
         // Store user in context with all data from backend response
         const userData = {
-          user_id: response.user.user_id, // This should be the numeric ID from backend
-          email: response.user.email || formData.email,
-          firstName: response.user.firstName,
-          lastName: response.user.lastName
+          user_id: respUser.user_id, // This should be the numeric ID from backend
+          email: respUser.email || formData.email,
+          firstName: respUser.firstName,
+          lastName: respUser.lastName
         };
         
-        console.log('Storing user data in context:', userData);
-        login(userData, response.token)
+  // store user in context
+  login(userData, (response as any).token)
         
         // Redirect to dashboard after successful login
         router.push('/dashboard')
       } else {
-        setError(response.message || 'Invalid credentials')
+        setError((response && (response as any).message) || 'Invalid credentials')
       }
     } catch (error: unknown) {
       console.error('Login error:', error)

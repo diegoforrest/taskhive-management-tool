@@ -1,7 +1,5 @@
 "use client";
 
-import Link from "next/link";
-
 export default function LearnMorePage() {
   return (
     <div className="min-h-screen bg-background flex flex-col">

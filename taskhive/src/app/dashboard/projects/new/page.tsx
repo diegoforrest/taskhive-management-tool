@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -40,12 +40,7 @@ export default function NewProjectPage() {
       return;
     }
 
-    console.log("=== PRE-SUBMISSION DEBUG ===");
-    console.log("User from auth context:", user);
-    console.log("User ID from context:", user.user_id);
-    console.log("User ID type:", typeof user.user_id);
-    
-    // More robust user_id parsing
+  // More robust user_id parsing
     let numericUserId: number;
     
     // First try to parse as number
@@ -77,17 +72,7 @@ export default function NewProjectPage() {
         due_date: formData.due_date || undefined,
       };
 
-      console.log("=== PROJECT CREATION DEBUG ===");
-      console.log("Parsed user_id:", numericUserId);
-      console.log("Is valid number?", !isNaN(numericUserId) && numericUserId > 0);
-      console.log("Creating project with data:", projectData);
-      console.log("Final user_id being sent:", projectData.user_id);
-      console.log("user_id type:", typeof projectData.user_id);
-      
-      const result = await authApi.createProject(projectData);
-      
-      console.log("=== API RESPONSE ===");
-      console.log("Full API response:", result);
+  const result = await authApi.createProject(projectData);
       
       // Dispatch custom event to trigger sidebar refresh
       window.dispatchEvent(new CustomEvent('projectCreated', { detail: result }));

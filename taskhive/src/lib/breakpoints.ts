@@ -5,7 +5,7 @@ export const BP_TABLET = 1024
 export const BP_DESKTOP = 1280
 export const BP_LARGE = 1440
 
-export default {
+export const breakpoints = {
   BP_MOBILE,
   BP_TABLET,
   BP_DESKTOP,

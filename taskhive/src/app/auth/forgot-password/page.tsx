@@ -66,7 +66,7 @@ export default function ForgotPasswordPage() {
                   try {
                     await navigator.clipboard.writeText(resetLink)
                     toast.success('Link copied to clipboard', { position: 'top-center' })
-                  } catch (e) {
+                  } catch {
                     // fallback: open the link in a new tab
                     window.open(resetLink, '_blank')
                   }

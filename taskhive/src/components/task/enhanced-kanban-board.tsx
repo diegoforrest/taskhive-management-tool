@@ -228,8 +228,8 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
           if (changelogData.length > 0) {
               reviewInfo = mapChangelogsToReviewInfo(changelogData) as ReviewInfo;
             }
-        } catch (e) {
-          console.warn('Failed to fetch changelog for task', task.id, e);
+        } catch {
+          // Ignore changelog fetch errors for individual tasks (non-fatal)
         }
 
         enhancedTasks.push({
@@ -246,8 +246,8 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
       };
       
   setTasks(groupedTasks);
-    } catch (err: unknown) {
-      console.error('Failed to load tasks:', err);
+    } catch {
+      // Failed to load tasks - fall back to empty lists
       setTasks({
         'Todo': [],
         'In Progress': [],
@@ -280,8 +280,8 @@ export default function EnhancedKanbanBoard({ project, projectId }: EnhancedKanb
       if (response.success && response.data) {
         setProjectData(response.data);
       }
-    } catch (err: unknown) {
-      console.error('Failed to load project:', err);
+    } catch {
+      // Failed to load project details; fall back to minimal project info
       setProjectData((project as unknown as Project) || ({ id: -1, user_id: -1, name: 'Unknown Project', description: '' } as Project));
     }
   }, [projectId, user?.user_id, project]);

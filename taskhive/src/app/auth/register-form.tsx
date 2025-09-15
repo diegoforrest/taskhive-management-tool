@@ -13,7 +13,6 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { authApi } from "@/lib/api"
 import { TermsOfService } from "@/components/auth/terms-of-service"
 import { PrivacyPolicy } from "@/components/auth/privacy-policy"
@@ -71,21 +70,15 @@ export function RegisterForm() {
     }
 
     try {
-      console.log('=== REGISTRATION ATTEMPT ===');
-      console.log('Email:', formData.email);
-      
+      // debug: registration attempt (removed console.log for production)
       const response = await authApi.register({
         email: formData.email,
         password: formData.password,
         firstName: formData.firstName,
         lastName: formData.lastName
       })
-      
-      console.log('Registration response:', response);
-      
+      // registration response handled below
       if (response.success) {
-        console.log('Registration successful, returned user_id:', response.user_id);
-        
         // Registration successful - redirect to sign-in with success message
         const message = encodeURIComponent('Registration successful! Please sign in with your credentials.');
         router.push(`/auth/sign-in?message=${message}&email=${encodeURIComponent(formData.email)}`);

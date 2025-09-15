@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronDown, List, Plus, Clock, AlertCircle, PlayCircle, CheckCircle, Calendar, Funnel, XCircle, Pause, Flame, Gauge, Leaf, ClockAlert, Rocket, User, BadgeQuestionMark, FolderOpen, MessageSquareCode, CircleCheck, Archive, ArchiveX, Undo2, CalendarCheck } from "lucide-react";
+import { ChevronDown, List, Plus, Clock, PlayCircle, CheckCircle, Calendar, Funnel, XCircle, Pause, Flame, Gauge, Leaf, ClockAlert, Rocket, User, FolderOpen, MessageSquareCode, CircleCheck, Archive, ArchiveX, Undo2, CalendarCheck } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -25,14 +25,7 @@ function hasData<T>(v: unknown): v is { data: T } {
 
 export default function DashboardHome() {
   const [activeTab, setActiveTab] = useState<"all" | "review" | "completed">("all");
-  const [completionDialog, setCompletionDialog] = useState<{ open: boolean; projectId: number | null }>({
-    open: false,
-    projectId: null
-  });
-  const [noteDialog, setNoteDialog] = useState<{ open: boolean; projectId: number | null }>({
-    open: false,
-    projectId: null
-  });
+  // completionDialog and noteDialog were removed - handlers are inline in the UI
   // Archive dialog and FAB (floating action button) state
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   // Confirmation modal for archiving
@@ -42,7 +35,7 @@ export default function DashboardHome() {
   const draggingRef = useRef<{ active: boolean; startX: number; startY: number; origX: number; origY: number; moved: boolean }>({ active: false, startX: 0, startY: 0, origX: 0, origY: 0, moved: false });
   const draggingStateRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [note, setNote] = useState("");
+  // note state not used; leave commented for future feature
   const [projects, setProjects] = useState<Project[]>([]);
   const projectsRef = useRef<Project[]>([]);
   const [projectTasks, setProjectTasks] = useState<Record<number, Task[]>>({});
@@ -113,14 +106,13 @@ export default function DashboardHome() {
       setLoading(true);
       // Load projects from real API
       const projectsResponse = await authApi.getProjects(typeof user.user_id === 'number' ? user.user_id : parseInt(user.user_id));
-      console.log('Current user ID:', user.user_id);
-      console.log('Projects API response:', projectsResponse);
+  // Debug logs removed: sensitive user/project data should not be logged in production
 
       // Extract projects from the response (support both ApiResponse and raw array)
       const projectsData: Project[] = hasData<Project[]>(projectsResponse)
         ? projectsResponse.data || []
         : (Array.isArray(projectsResponse) ? projectsResponse : []);
-      console.log('Projects data:', projectsData);
+  // Projects data loaded (suppressed verbose log)
 
       setProjects(projectsData);
 
@@ -132,7 +124,7 @@ export default function DashboardHome() {
       console.error('Failed to load data:', error);
       // Fallback logic unchanged
       try {
-        console.log('Falling back to mock data...');
+  // Fallback to mock data when real API fails
   const [projectsData, tasksData] = await Promise.all([
           tasksApi.getAllProjects(),
           tasksApi.getAllTasks()
@@ -188,10 +180,6 @@ export default function DashboardHome() {
   const [unarchivingMap, setUnarchivingMap] = useState<Record<number, boolean>>({});
   const suppressClickRef = useRef(false);
 
-  const requestArchive = useCallback((projectId: number) => {
-    setConfirmTargetId(projectId);
-    setConfirmArchiveOpen(true);
-  }, []);
 
   const confirmArchive = useCallback(() => {
     if (confirmTargetId == null) return;
@@ -209,10 +197,9 @@ export default function DashboardHome() {
       const btnSize = 56; // approximate touch target / button footprint
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      const initX = Math.max(margin, Math.min(vw - margin - btnSize, vw - 88));
-      const initY = Math.max(margin, Math.min(vh - margin - btnSize, vh - 120));
-      setFabPos({ x: vw - margin - btnSize, y: vh - margin - btnSize });
-    } catch (e) {
+  // Initialize FAB position at bottom-right
+  setFabPos({ x: vw - margin - btnSize, y: vh - margin - btnSize });
+    } catch {
       // ignore in SSR
     }
   }, []);
@@ -254,7 +241,7 @@ export default function DashboardHome() {
       draggingRef.current.active = false;
       draggingRef.current.moved = false;
   draggingStateRef.current = false; // ended dragging so re-enable transitions
-  try { setIsDragging(false); } catch (_) {}
+  try { setIsDragging(false); } catch {}
 
       if (wasMoved) {
         // suppress the upcoming click event (if any)
@@ -286,7 +273,7 @@ export default function DashboardHome() {
           setFabPos({ x: best.x, y: best.y });
         };
 
-        try { snapToCorner(); } catch (e) { /* ignore */ }
+  try { snapToCorner(); } catch { /* ignore */ }
       }
     };
     window.addEventListener('pointermove', onPointerMove);
@@ -298,7 +285,7 @@ export default function DashboardHome() {
   }, [draggingRef, fabPos]);
 
   useEffect(() => {
-    console.log('Dashboard mounted, loading data...');
+    // Load initial data on mount
     loadData();
   }, [loadData]);
 
@@ -317,7 +304,7 @@ export default function DashboardHome() {
           }
         }, 200);
       }
-    } catch (e) {
+    } catch {
       // ignore
     }
   }, [searchParams, projects]);
@@ -327,7 +314,7 @@ export default function DashboardHome() {
       const ev = e as { currentTarget?: EventTarget | null } | undefined;
       const el = ev?.currentTarget as unknown as HTMLDetailsElement | undefined;
       setDetailsOpenMap(prev => ({ ...prev, [projectId]: !!(el && el.open) }));
-    } catch (_err) {
+    } catch {
       // ignore
     }
   }, []);
@@ -374,14 +361,14 @@ export default function DashboardHome() {
   useEffect(() => {
     const handleFocus = () => {
       if (user?.user_id) {
-        console.log('Window focused, reloading data...');
+        // Reload data when window gains focus
         loadData();
       }
     };
 
     const handleVisibilityChange = () => {
       if (!document.hidden && user?.user_id) {
-        console.log('Page became visible, reloading data...');
+        // Reload data when page becomes visible
         loadData();
       }
     };
@@ -402,13 +389,7 @@ export default function DashboardHome() {
     const completed = tasks.filter(task => task.status === 'Done').length;
     const inProgress = tasks.filter(task => task.status === 'In Progress').length;
     const todo = tasks.filter(task => task.status === 'Todo').length;
-    console.log(`Project ${projectId} tasks:`, {
-      total,
-      completed,
-      inProgress,
-      todo,
-      taskStatuses: tasks.map(t => ({ id: t.id, name: t.name, status: t.status }))
-    });
+    // task stats calculated for project; verbose log removed
     return { total, completed, inProgress, todo };
   }, [projectTasks]);
 
@@ -461,33 +442,13 @@ export default function DashboardHome() {
       else segments.completedPercent += diff;
     }
     
-    console.log(`Project ${projectId} segments:`, segments);
+  // segments computed for UI; suppressed verbose logging
     return segments;
   };
 
   // Function to auto-update project status based on task completion is defined above as `updateProjectStatusBasedOnTasks` (hook-safe)
 
-  const handleCompleteProject = () => {
-    if (completionDialog.projectId) {
-      setProjects(prevProjects => 
-        prevProjects.map((project: Project) => 
-          project.id === completionDialog.projectId 
-            ? { ...project, status: "Completed" }
-            : project
-        )
-      );
-      console.log(`Completing project ${completionDialog.projectId}`);
-      setCompletionDialog({ open: false, projectId: null });
-    }
-  };
-
-  const handleAddNote = () => {
-    if (noteDialog.projectId && note.trim()) {
-      console.log(`Adding note to project ${noteDialog.projectId}: ${note}`);
-      setNote("");
-      setNoteDialog({ open: false, projectId: null });
-    }
-  };
+  // requestArchive, handleCompleteProject and handleAddNote removed as they were unused; inline handlers control these flows
 
   // Determine project status based on task completion
   const getProjectStatus = (projectId: number) => {
@@ -1127,7 +1088,7 @@ export default function DashboardHome() {
             draggingRef.current.startY = pe.clientY;
             draggingRef.current.origX = fabPos.x;
             draggingRef.current.origY = fabPos.y;
-          } catch (_err) {}
+          } catch {}
         }}
   // position using transform for smoother GPU-accelerated animation
   // position using transform for smoother GPU-accelerated animation

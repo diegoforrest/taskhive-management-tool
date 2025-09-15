@@ -5,7 +5,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
-import { ClipboardCheck, ChevronDown, ChevronRight, Calendar, FolderOpen, CheckSquare, ChevronUp, BadgeQuestionMark, Github, User2, LogOut, Target, Flame, Zap, Leaf, LayoutDashboard, MessageSquareCode, CircleCheck } from "lucide-react"
+import { ChevronDown, ChevronRight, Calendar, FolderOpen, ChevronUp, BadgeQuestionMark, Github, User2, LogOut, Target, Flame, Zap, Leaf, LayoutDashboard, MessageSquareCode, CircleCheck } from "lucide-react"
 
 import {
   Sidebar,
@@ -24,12 +24,12 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible"
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 
 import { useAuth } from "@/lib/auth-context"
 import { authApi, Task, Project } from "@/lib/api"
-import { Badge } from "@/components/ui/badge"
+// Badge component was previously imported but isn't used in this file
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 
 // Sidebar project shape (Project plus UI fields)
@@ -70,7 +70,8 @@ export function AppSidebar() {
   const router = useRouter()
   const pathname = usePathname()
   const [userProjects, setUserProjects] = useState<SidebarProject[]>([])
-  const [loading, setLoading] = useState(false)
+  // intentionally ignore the current loading value to avoid unused-variable lint warnings
+  const [, setLoading] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   // Track which project collapsibles are open (controlled)
   const [openProjects, setOpenProjects] = useState<Record<number, boolean>>({})
@@ -91,12 +92,7 @@ export function AppSidebar() {
 
   // Debug: log userProjects and their tasks (only once, after state declarations)
   useEffect(() => {
-    if (userProjects.length > 0) {
-      console.log('[Sidebar] userProjects:', userProjects);
-      userProjects.forEach((proj) => {
-        console.log(`[Sidebar] Project ${proj.name} tasks:`, proj.tasks);
-      });
-    }
+    // no-op: placeholder for potential telemetry or analytics
   }, [userProjects]);
 
   // Do not auto-open or auto-close the Projects group; users control
@@ -159,10 +155,10 @@ export function AppSidebar() {
               const resp = await authApi.getTasks(project.id)
               const tasks: Task[] = hasDataProp<Task[]>(resp) ? resp.data : (Array.isArray(resp) ? resp : [])
               return { projectId: project.id, tasks }
-            } catch (err) {
-              console.error(`Failed to load tasks for project ${project.id}:`, err)
-              return { projectId: project.id, tasks: [] as Task[] }
-            }
+                  } catch {
+                    // Failed to load tasks for this project; fall back to empty list
+                    return { projectId: project.id, tasks: [] as Task[] }
+                  }
           })
 
           const taskResults = await Promise.all(taskPromises)
@@ -198,8 +194,8 @@ export function AppSidebar() {
         })
 
   setUserProjects(transformedProjects)
-      } catch (error) {
-        console.error('Failed to load user projects:', error)
+        } catch {
+        // Failed to load user projects; fall back to empty list
         setUserProjects([])
       } finally {
         setLoading(false)
@@ -213,30 +209,28 @@ export function AppSidebar() {
   useEffect(() => {
     const handleFocus = () => {
       if (user?.user_id && isAuthenticated) {
-        console.log('🔄 Sidebar: Window focused, reloading projects...')
-        setRefreshKey(prev => prev + 1) // Trigger refresh by updating key
+        // refresh sidebar projects when window gains focus
+        setRefreshKey(prev => prev + 1)
       }
     }
 
     const handleVisibilityChange = () => {
       if (!document.hidden && user?.user_id && isAuthenticated) {
-        console.log('🔄 Sidebar: Page became visible, reloading projects...')
-        setRefreshKey(prev => prev + 1) // Trigger refresh by updating key
+        // refresh sidebar when page becomes visible
+        setRefreshKey(prev => prev + 1)
       }
     }
 
     // Listen for custom events from other components (supports multiple event names)
     const handleProjectCreated = () => {
       if (user?.user_id && isAuthenticated) {
-        console.log('🔄 Sidebar: Project created event received, reloading...')
         // small delay to allow backend write-through
         setTimeout(() => setRefreshKey(prev => prev + 1), 300)
       }
     }
 
-    const handleGenericUpdate = (e?: Event) => {
+    const handleGenericUpdate = () => {
       if (user?.user_id && isAuthenticated) {
-        console.log('🔄 Sidebar: received update event', e && (e as CustomEvent).type)
         setRefreshKey(prev => prev + 1)
       }
     }
@@ -306,12 +300,7 @@ export function AppSidebar() {
   })
 
   // Projects that are not in review (to show under Projects)
-  const otherProjects = userProjects.filter((p) => {
-    const s = (p.status || p.project_status || '').toString().toLowerCase()
-    return !(s === 'review' || s === 'in review' || s === 'to review' || s === 'to-review' || s === 'toreview')
-  })
-
-  // Projects that are In Progress (explicit filter for Projects dropdown)
+  // Computed on-demand where needed; removed eager assignment to avoid unused-variable lint warnings
   const inProgressProjects = userProjects.filter((p) => {
     const s = (p.status || p.project_status || '').toString().toLowerCase()
     return s === 'in progress' || s === 'inprogress' || s === 'in_progress' || s === 'started' || s === 'progress' || s === 'ongoing'
@@ -558,7 +547,7 @@ export function AppSidebar() {
                         <Collapsible open={!!openProjects[p.id]} onOpenChange={(val) => setOpenProjects((prev) => ({ ...prev, [p.id]: val }))}>
                           <div className="relative">
                             <SidebarMenuSubButton asChild>
-                              <Link href={isAuthenticated ? `/dashboard/completed/${p.id}` : "/auth-sign-in"} className="flex items-center w-full">
+                              <Link href={isAuthenticated ? `/dashboard/completed/${p.id}` : "/auth/sign-in"} className="flex items-center w-full">
                                 <span className="flex-shrink-0 group-data-[state=collapsed]:mx-auto">
                                   <Tooltip>
                                     <TooltipTrigger asChild>
@@ -587,7 +576,7 @@ export function AppSidebar() {
                               {p.tasks && p.tasks.length > 0 ? p.tasks.map((task) => (
                                 <SidebarMenuSubItem key={task.id}>
                                   <SidebarMenuSubButton asChild>
-                                    <Link href={isAuthenticated ? (`/dashboard/completed/${p.id}#task-${task.id}`) : "/auth-sign-in"} className="flex items-center w-full">
+                                    <Link href={isAuthenticated ? (`/dashboard/completed/${p.id}#task-${task.id}`) : "/auth/sign-in"} className="flex items-center w-full">
                                       <span className="flex-shrink-0 group-data-[state=collapsed]:mx-auto flex items-center gap-2">
                                         {getPriorityIcon(task.priority)}
                                         <span className={`inline-block h-2 w-2 rounded-full ${getStatusDotClass(task.status)}`} aria-hidden="true" />
@@ -728,7 +717,7 @@ const formatProjectDate = (raw?: string | undefined) => {
     const d = new Date(raw)
     if (Number.isNaN(d.getTime())) return 'No date'
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-  } catch (e) {
+  } catch {
     return 'No date'
   }
 }

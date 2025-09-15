@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
+// Link not used in this view
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Calendar, Gauge, CheckCircle, Flame, Leaf, CircleCheckBig, User, CalendarCheck } from 'lucide-react';
+import { Calendar, Gauge, Flame, Leaf, CircleCheckBig, CalendarCheck, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -84,7 +84,7 @@ export default function CompletedPage() {
 				try {
 					const res = await authApi.getProject(projectId, userId);
 					if (mounted && res && res.success) setProject(res.data);
-				} catch (e) {
+				} catch {
 					// fallback: fetch all projects and find
 					try {
 						const projectsRes = await authApi.getProjects(userId);
@@ -106,8 +106,8 @@ export default function CompletedPage() {
 						? tRes
 						: (tRes && typeof tRes === 'object' && 'data' in (tRes as Record<string, unknown>) ? (tRes as Record<string, unknown>).data as unknown : []);
 					if (mounted && Array.isArray(tArr)) setTasks(tArr as Task[]);
-				} catch (e) {
-					console.warn('Failed to load tasks for project', projectId, e);
+				} catch {
+					// Failed to load tasks for project; fall back to empty list
 					if (mounted) setTasks([]);
 				}
 
@@ -118,8 +118,8 @@ export default function CompletedPage() {
 						? hRes
 						: (hRes && typeof hRes === 'object' && 'data' in (hRes as Record<string, unknown>) ? (hRes as Record<string, unknown>).data as unknown : []);
 					if (mounted && Array.isArray(hArr)) setProjectHistory(hArr as ChangeLogEntry[]);
-				} catch (e) {
-					console.warn('Failed to load project history', e);
+				} catch {
+					// Failed to load project history
 					if (mounted) setProjectHistory([]);
 				}
 
@@ -139,8 +139,8 @@ export default function CompletedPage() {
 				const arr = Array.isArray(arrRaw) ? arrRaw : [];
 				setSelectedTaskHistory(arr as ChangeLogEntry[]);
 			setSelectedTaskTitle(task.name || task.title || 'Task');
-		} catch (e) {
-			console.warn('Failed to load task history', e);
+		} catch {
+			// Failed to load task history
 			setSelectedTaskHistory([]);
 			setSelectedTaskTitle(task.name || task.title || 'Task');
 		}
