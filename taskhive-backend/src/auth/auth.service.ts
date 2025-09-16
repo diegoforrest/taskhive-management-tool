@@ -10,6 +10,7 @@ import { PasswordResetToken } from './password-reset-token.entity';
 import { RegisterDto, LoginDto } from './dto';
 import { JwtPayload } from './strategies/jwt.strategy';
 import { ConfigService } from '@nestjs/config';
+import logger, { log } from '../logger';
 
 @Injectable()
 export class AuthService {
@@ -27,7 +28,7 @@ export class AuthService {
   ) {}
 
   async register(registerDto: RegisterDto) {
-    console.log('🔄 Registration attempt:', registerDto);
+    log.log(`🔄 Registration attempt: email=${registerDto.email}`);
     const { email, password, firstName, lastName } = registerDto;
 
     // Check if user already exists
@@ -36,7 +37,7 @@ export class AuthService {
     });
 
     if (existingUser) {
-      console.log('❌ User already exists:', existingUser);
+      log.warn(`❌ User already exists: email=${existingUser.email}`);
       throw new ConflictException('Email already exists');
     }
 
@@ -52,8 +53,8 @@ export class AuthService {
       lastName,
     });
 
-    const savedUser = await this.userRepository.save(user);
-    console.log('✅ User saved successfully:', { user_id: savedUser.user_id, email: savedUser.email });
+  const savedUser = await this.userRepository.save(user);
+  log.log(`✅ User saved successfully: user_id=${savedUser.user_id} email=${savedUser.email}`);
 
     return {
       success: true,
@@ -233,7 +234,7 @@ export class AuthService {
         );
       } catch (e) {
         // If changelog cleanup fails, log and continue so the error is clearer
-        console.warn('Failed to cleanup changelogs for project', projectId, e);
+        log.warn('Failed to cleanup changelogs for project ' + String(projectId) + ' - ' + (e && e.message ? e.message : String(e)));
       }
 
       // Delete all tasks associated with this project first
@@ -394,7 +395,7 @@ export class AuthService {
 
       return { success: true, message: 'Changelog recorded' };
     } catch (error) {
-      console.error('Failed to create changelog:', error);
+      log.error('Failed to create changelog: ' + (error && error.message ? error.message : String(error)));
       throw new Error(`Failed to create changelog: ${error.message}`);
     }
   }
@@ -409,7 +410,7 @@ export class AuthService {
       const rows = await qb.getMany();
       return { success: true, data: rows };
     } catch (error) {
-      console.error('Failed to fetch changelogs:', error);
+      log.error('Failed to fetch changelogs: ' + (error && error.message ? error.message : String(error)));
       throw new Error(`Failed to fetch changelogs: ${error.message}`);
     }
   }
@@ -566,19 +567,19 @@ export class AuthService {
               res.on('end', () => {
                 if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) return resolve();
                 const text = Buffer.concat(chunks).toString('utf8');
-                console.warn('SendGrid send failed', res.statusCode, text);
+                log.warn('SendGrid send failed ' + String(res.statusCode) + ' - ' + text);
                 return resolve();
               });
             });
             req.on('error', (err: any) => {
-              console.warn('SendGrid send failed', err);
+              log.warn('SendGrid send failed: ' + (err && err.message ? err.message : String(err)));
               resolve();
             });
             req.write(payload);
             req.end();
           });
         } catch (e) {
-          console.warn('SendGrid send failed', e);
+          log.warn('SendGrid send failed: ' + (e && e.message ? e.message : String(e)));
         }
   } else if (smtpHost && smtpUser && smtpPass) {
         let nodemailer: any;
@@ -586,7 +587,7 @@ export class AuthService {
           // eslint-disable-next-line @typescript-eslint/no-var-requires
           nodemailer = require('nodemailer');
         } catch (e) {
-          console.warn('nodemailer not available, cannot send email. Reset link:', resetLink);
+          log.warn('nodemailer not available, cannot send email. Reset link: ' + resetLink);
           return { success: true, message: 'Reset link generated and logged' };
         }
 
@@ -607,7 +608,7 @@ export class AuthService {
 
         await transporter.sendMail(mail);
       } else {
-        console.warn('Password reset link (no provider configured):', resetLink);
+  log.warn('Password reset link (no provider configured): ' + resetLink);
         // In development, it's handy to return the link in the response for testing.
         const expose = this.configService.get<string>('DEV_EXPOSE_RESET_LINK', 'true');
         if (expose === 'true' || process.env.NODE_ENV !== 'production') {
@@ -619,7 +620,7 @@ export class AuthService {
       if (exposedLink) response.resetLink = exposedLink;
       return response;
     } catch (error) {
-      console.error('Failed to request password reset', error);
+      log.error('Failed to request password reset: ' + (error && error.message ? error.message : String(error)));
       throw new Error(`Failed to request password reset: ${error.message}`);
     }
   }
@@ -635,7 +636,7 @@ export class AuthService {
       if (!matches) return { success: false, message: 'Token invalid' };
       return { success: true, message: 'Token valid' };
     } catch (e) {
-      console.error('validateResetToken error', e);
+      log.error('validateResetToken error: ' + (e && e.message ? e.message : String(e)));
       return { success: false, message: 'Validation failed' };
     }
   }
@@ -716,7 +717,7 @@ export class AuthService {
       const res = await this.tokenRepository.createQueryBuilder().delete().from('password_reset_tokens').where('user_id = :uid', { uid: user.user_id }).execute();
       return { success: true, deleted: res.affected };
     } catch (e) {
-      console.error('deleteResetTokensForEmail error', e);
+      log.error('deleteResetTokensForEmail error: ' + (e && e.message ? e.message : String(e)));
       return { success: false, message: e.message || 'Failed' };
     }
   }

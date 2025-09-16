@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import logger, { log } from './logger';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -37,13 +38,13 @@ import { AuthModule } from './auth/auth.module';
             try {
               if (fs.existsSync(defaultRenderSecretPath)) {
                 resolvedCaPath = defaultRenderSecretPath;
-                console.log('[DB] auto-detected CA path at', resolvedCaPath);
+                log.log(`[DB] auto-detected CA path at ${resolvedCaPath}`);
               }
-            } catch (e) {
+            } catch {
               // ignore
             }
           }
-          console.log('[DB] sslEnabled=', sslEnabled, 'caEnvPresent=', !!caEnv, 'caPath=', resolvedCaPath);
+          log.log(`[DB] sslEnabled=${sslEnabled} caEnvPresent=${!!caEnv} caPath=${resolvedCaPath}`);
           const rejectEnv = (configService.get('DB_SSL_REJECT_UNAUTHORIZED') || 'true').toString().toLowerCase();
           const rejectUnauthorized = rejectEnv === 'true';
           let caValue: Buffer | undefined;
@@ -56,27 +57,27 @@ import { AuthModule } from './auth/auth.module';
             // Log whether the secret file exists at the expected Render path
             try {
               const exists = fs.existsSync(resolvedCaPath);
-              console.log('[DB] CA path exists:', resolvedCaPath, exists);
+              log.log(`[DB] CA path exists: ${resolvedCaPath} ${exists}`);
               if (exists) {
                 caValue = fs.readFileSync(resolvedCaPath);
-                console.log('[DB] CA file loaded, bytes=', caValue.length);
+                log.log(`[DB] CA file loaded, bytes=${caValue.length}`);
               }
-            } catch (e) {
-              console.warn('[DB] Error checking/reading CA path', caPath, e && e.message);
+            } catch {
+              log.warn(`[DB] Error checking/reading CA path ${caPath}`);
             }
           }
 
           if (caValue) {
             // mysql2/typeorm accept the CA as a string (PEM). Ensure we pass a utf8 string
             extra = { ssl: { ca: caValue.toString('utf8'), rejectUnauthorized } };
-            console.log('[DB] SSL enabled, CA loaded, rejectUnauthorized=', rejectUnauthorized);
+            log.log(`[DB] SSL enabled, CA loaded, rejectUnauthorized=${rejectUnauthorized}`);
           } else {
             // Pass an object; include rejectUnauthorized to allow temporary overrides for debugging
             extra = { ssl: { rejectUnauthorized } };
-            console.log('[DB] SSL enabled, no CA provided, rejectUnauthorized=', rejectUnauthorized);
+            log.log(`[DB] SSL enabled, no CA provided, rejectUnauthorized=${rejectUnauthorized}`);
           }
         } else {
-          console.log('[DB] SSL disabled');
+          log.log('[DB] SSL disabled');
         }
 
         return {

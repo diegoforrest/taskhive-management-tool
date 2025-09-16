@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import logger, { log } from './logger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -21,7 +22,7 @@ async function bootstrap() {
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
-      console.warn('Blocked CORS request from origin:', origin);
+      log.warn(`Blocked CORS request from origin: ${origin}`);
       return callback(new Error('Not allowed by CORS'));
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
@@ -29,7 +30,7 @@ async function bootstrap() {
     credentials: true,
   });
 
-  console.log('Allowed CORS origins:', allowedOrigins);
+  log.log(`Allowed CORS origins: ${JSON.stringify(allowedOrigins)}`);
 
   // Enable global validation pipes
   app.useGlobalPipes(new ValidationPipe({
@@ -40,6 +41,6 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3001;
   await app.listen(port);
-  console.log(`🚀 TaskHive Backend running on http://localhost:${port}`);
+  log.log(`🚀 TaskHive Backend running on http://localhost:${port}`);
 }
 bootstrap();
