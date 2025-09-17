@@ -88,9 +88,8 @@ npm run dev
 ## Database & migrations
 
 1. Ensure DB is reachable and `.env` DB settings are correct.
-2. Run migrations thru bash or execute directly to the MYSQL workbench
+2. Run migration.sql thru bash or execute directly to the MYSQL workbench
 
-taskhive-backend/scripts/run_migration.sh
 ---
 
 ## Incomplete functionality / known issues
