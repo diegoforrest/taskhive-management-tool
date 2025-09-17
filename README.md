@@ -3,6 +3,7 @@
 TaskHive is a clean, lightweight project and task manager that helps users work from idea to done without unnecessary complexity. Focus on what matters—priorities, progress, and quick reviews. 
 
 Key features:
+
 -User Authentication (Sign in/Sign up/Change Password)
 
 -Create/Edit/Delete Project
@@ -80,7 +81,7 @@ npm run dev
 1. Ensure DB is reachable and `.env` DB settings are correct.
 2. Run migrations thru bash or execute directly to the MYSQL workbench
 
-/taskhive-backend/scripts/run_migration.sh
+taskhive-backend/scripts/run_migration.sh
 ---
 
 ## Incomplete functionality / known issues
