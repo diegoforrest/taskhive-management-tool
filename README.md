@@ -36,6 +36,16 @@ Add ons feature:
 
 ---
 
+## Tech Stack used
+
+- NextJs - Front end
+- NestJs - Back end
+- Axios - HTTP
+- Tailwind and CSS - UI
+- NodeJs 
+- Typescript
+- MySQL - Database
+
 ## Prerequisites
 
 - Node.js (>= 18 recommended)
@@ -43,7 +53,6 @@ Add ons feature:
 - MYSQL Db
 - Tailwind
 - Typescript
-
 ---
 
 ## Environment
