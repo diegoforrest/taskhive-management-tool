@@ -26,7 +26,7 @@ This repository contains the TaskHive backend service — a NestJS + TypeORM API
 - NestJS
 - TypeScript
 - TypeORM
-- MySQL / MariaDB (or compatible)
+- MySQL
 
 ## Prerequisites
 
@@ -52,7 +52,6 @@ npm install
 npm run start:dev
 ```
 
-After the dev server starts, the API will be available on the configured `PORT` (default: 3001 or the value in your `.env`).
 
 ## Environment variables
 
@@ -78,10 +77,6 @@ FRONTEND_URL=http://localhost:3000
 
  -Open MySQL workbench execute the Migration.sql
  -Double check tables and columns
-
-## Running the app
-
-- Development (watch + auto-reload):
 
 ```
 npm run start:dev
@@ -117,4 +112,4 @@ If you encounter a runtime error, please check startup logs for stack traces and
 
 - `src/` — application source
 - `src/logger.ts` — centralized logger wrapper
-- `migration.sql` — schema/migration SQL
+- `migration.sql` — src/migration SQL
