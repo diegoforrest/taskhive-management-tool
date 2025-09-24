@@ -972,7 +972,7 @@ export default function DashboardHome() {
             ))}
           </div>
         ) : (
-          <div className="text-center py-12">
+          <div className="flex flex-col items-center justify-center text-center py-12 min-h-[70vh]">
             <div className="text-gray-400 mb-4">
               <List className="h-12 w-12 mx-auto" />
             </div>

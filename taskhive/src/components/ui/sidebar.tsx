@@ -260,7 +260,7 @@ function SidebarTrigger({
 }: React.ComponentProps<typeof Button>) {
   const { toggleSidebar, state } = useSidebar()
 
-  return (
+  const button = (
     <Button
       data-sidebar="trigger"
       data-slot="sidebar-trigger"
@@ -281,7 +281,16 @@ function SidebarTrigger({
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   )
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent side="bottom">Toggle sidebar (Ctrl/Cmd+B)</TooltipContent>
+    </Tooltip>
+  )
 }
+
+// SidebarShortcutButton removed per UX request: keep only the SidebarTrigger with tooltip.
 
 function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
   const { toggleSidebar } = useSidebar()

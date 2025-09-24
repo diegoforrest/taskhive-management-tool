@@ -283,18 +283,24 @@ export function TopBar() {
 
             {/* Search - show only when signed in, placed between theme and account */}
             {isAuthenticated && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-9 px-2 sm:px-3 text-muted-foreground hover:text-foreground transition-colors relative group"
-                onClick={handleSearchClick}
-              >
-                <Search className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline text-sm font-normal">Search</span>
-                <kbd className="hidden [@media(min-width:769px) and (max-width:1080px)]:ml-2 [@media(min-width:769px) and (max-width:1080px)]:inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-60 group-hover:opacity-100 transition-opacity">
-                  <span className="text-xs">⌘</span>K
-                </kbd>
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 px-2 sm:px-3 text-muted-foreground hover:text-foreground transition-colors relative group"
+                    onClick={handleSearchClick}
+                  >
+                    <Search className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline text-sm font-normal">Search</span>
+                    {/* show shortcut visibly on sm+ */}
+                    <span className="hidden sm:inline ml-2">
+                      <kbd className="inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium">⌘K</kbd>
+                    </span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Search — Shortcut: ⌘/Ctrl+K</TooltipContent>
+              </Tooltip>
             )}
 
             {/* User Menu */}

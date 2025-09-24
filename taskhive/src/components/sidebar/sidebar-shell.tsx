@@ -14,12 +14,9 @@ interface Props {
 export default function SidebarShell({ children, defaultOpen }: Props) {
   const { isAuthenticated, isLoading } = useAuth()
 
-  // While auth is loading or unauthenticated, always provide SidebarProvider so
-  // UI components that call sidebar hooks (TopBar's SidebarTrigger) do not throw.
   if (isLoading || !isAuthenticated) {
     return (
       <SidebarProvider defaultOpen={defaultOpen}>
-        {/* Do not render AppSidebar for guests; still provide SidebarInset so TopBar can use SidebarTrigger */}
         <SidebarInset>
           <TopBar />
           <main className="flex-1">
