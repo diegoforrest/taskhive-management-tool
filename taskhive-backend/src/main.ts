@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import logger, { log } from './logger';
 
@@ -38,6 +39,11 @@ async function bootstrap() {
     forbidNonWhitelisted: true,
     transform: true,
   }));
+
+  // Add security headers in production
+  if (process.env.NODE_ENV === 'production') {
+    app.use(helmet());
+  }
 
   const port = process.env.PORT || 3001;
   await app.listen(port);

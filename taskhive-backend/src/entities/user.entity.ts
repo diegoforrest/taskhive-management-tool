@@ -23,6 +23,10 @@ export class User {
   @Column({ nullable: true })
   lastName?: string;
 
+  @Column({ type: 'text', nullable: true })
+  // Stored as JSON string array, e.g. ['user'] or ['admin','user']
+  roles?: string;
+
   @Column({ default: true })
   isActive: boolean;
 

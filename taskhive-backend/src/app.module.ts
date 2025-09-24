@@ -5,7 +5,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import logger, { log } from './logger';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { AuthModule } from './auth/auth.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { ProjectsModule } from './modules/projects/projects.module';
+import { TasksModule } from './modules/tasks/tasks.module';
+import { UsersModule } from './modules/users/users.module';
+import { ChangelogsModule } from './modules/changelogs/changelogs.module';
 
 @Module({
   imports: [
@@ -94,7 +98,11 @@ import { AuthModule } from './auth/auth.module';
         };
       },
     }),
-    AuthModule,
+  AuthModule,
+  ProjectsModule,
+  TasksModule,
+  UsersModule,
+  ChangelogsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
