@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu"
-import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -85,8 +85,12 @@ export function TopBar() {
   // Handle keyboard shortcuts
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Safely extract key; some synthetic events or unexpected events may not have a string key
+      const rawKey = (e && (e as any).key) as unknown
+      const key = typeof rawKey === 'string' ? rawKey.toLowerCase() : ''
+
       // Cmd/Ctrl+K: open search (existing behavior)
-      if (isAuthenticated && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      if (isAuthenticated && (e.metaKey || e.ctrlKey) && key === 'k') {
         e.preventDefault();
         setSearchOpen(true);
         return;
@@ -97,7 +101,7 @@ export function TopBar() {
       if (
         isAuthenticated &&
         !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey &&
-        e.key.toLowerCase() === 'k'
+        key === 'k'
       ) {
         const target = e.target as HTMLElement | null;
         const tag = target?.tagName?.toUpperCase();
@@ -221,12 +225,17 @@ export function TopBar() {
     <>
   <Toaster position="top-center" />
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex h-14 items-center px-2 sm:px-4 gap-2 sm:gap-4 justify-between">
-          {/* Left side: Sidebar trigger */}
-          <SidebarTrigger className="-ml-1" />
+        <div className="flex h-14 items-center px-2 sm:px-4 gap-2 sm:gap-4">
+          {/* Left column - fixed width to reserve space for sidebar trigger */}
+          <div className="flex items-center w-12">
+            {isAuthenticated && <SidebarTrigger className="-ml-1" />}
+          </div>
 
-          {/* Right side: theme toggle, search, user menu */}
-          <div className="flex items-center gap-1 sm:gap-2 [@media(min-width:769px) and (max-width:1080px)]:gap-4">
+          {/* Center spacer to push controls to the right */}
+          <div className="flex-1" />
+
+          {/* Right column - theme toggle and user menu always stick to the right */}
+          <div className="flex items-center gap-1 sm:gap-2">
             {/* Theme Dropdown */}
             {mounted && (
               <DropdownMenu>
@@ -272,7 +281,7 @@ export function TopBar() {
               </DropdownMenu>
             )}
 
-            {/* Search - only show when authenticated with responsive design */}
+            {/* Search - show only when signed in, placed between theme and account */}
             {isAuthenticated && (
               <Button
                 variant="ghost"
@@ -281,9 +290,7 @@ export function TopBar() {
                 onClick={handleSearchClick}
               >
                 <Search className="h-4 w-4 sm:mr-2" />
-                {/* Hide text on small screens, show on sm and up */}
                 <span className="hidden sm:inline text-sm font-normal">Search</span>
-                {/* Show keyboard shortcut only on md and up */}
                 <kbd className="hidden [@media(min-width:769px) and (max-width:1080px)]:ml-2 [@media(min-width:769px) and (max-width:1080px)]:inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-60 group-hover:opacity-100 transition-opacity">
                   <span className="text-xs">⌘</span>K
                 </kbd>
@@ -341,7 +348,9 @@ export function TopBar() {
       {/* Search Dialog */}
       <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
         <DialogContent className="w-[95vw] max-w-[600px] mx-auto p-0">
-          <DialogHeader className="px-4 sm:px-6 py-4 border-b">
+          {/* Accessible title for screen readers; visually hidden */}
+          <DialogTitle className="sr-only">Search projects</DialogTitle>
+            <DialogHeader className="px-4 sm:px-6 py-4 border-b">
             <div className="flex items-center space-x-2">
               <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <Input

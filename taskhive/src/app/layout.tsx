@@ -3,8 +3,7 @@ import { Inter } from "next/font/google"
 import { cookies } from "next/headers"
 import type { Metadata } from "next"
 import "./globals.css"
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/sidebar/app-sidebar"
+import SidebarShell from "../components/sidebar/sidebar-shell"
 import { ThemeProvider } from "@/components/theme/theme-provider"
 import { TopBar } from "@/components/topbar/top-bar"
 import { AuthProvider } from "@/lib/auth-context"
@@ -36,15 +35,9 @@ export default async function RootLayout({
         >
           <AuthProvider>
             <SearchProvider>
-              <SidebarProvider defaultOpen={defaultOpen}>
-                <AppSidebar />
-                <SidebarInset>
-                  <TopBar />
-                  <main className="flex-1">
-                    {children}
-                  </main>
-                </SidebarInset>
-              </SidebarProvider>
+              <SidebarShell defaultOpen={defaultOpen}>
+                {children}
+              </SidebarShell>
             </SearchProvider>
           </AuthProvider>
         </ThemeProvider>
