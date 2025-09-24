@@ -285,7 +285,7 @@ function SidebarTrigger({
   return (
     <Tooltip>
       <TooltipTrigger asChild>{button}</TooltipTrigger>
-      <TooltipContent side="bottom">Toggle sidebar (Ctrl/Cmd+B)</TooltipContent>
+      <TooltipContent side="right">Toggle sidebar (Ctrl/Cmd+B)</TooltipContent>
     </Tooltip>
   )
 }
