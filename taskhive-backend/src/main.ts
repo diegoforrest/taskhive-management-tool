@@ -14,8 +14,6 @@ async function bootstrap() {
     : [];
   const allowedOrigins = envOrigins.length ? envOrigins : defaultOrigins;
 
-  // Production-ready CORS: use an origin function so we can support multiple exact origins
-  // while still allowing credentialed requests (credentials: true requires echoing the Origin)
   app.enableCors({
     origin: (origin, callback) => {
       // Non-browser requests (curl, server-to-server) often have no origin

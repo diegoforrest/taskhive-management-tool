@@ -101,7 +101,13 @@ export default function DashboardHome() {
   }, []);
 
   const loadData = useCallback(async () => {
-    if (!user?.user_id) return;
+    if (!user?.user_id) {
+      // No authenticated user: clear any existing projects/tasks and ensure loading is false
+      setProjects([]);
+      setProjectTasks({});
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       // Load projects from real API

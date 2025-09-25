@@ -2,8 +2,8 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TasksController } from './tasks.controller';
 import { TasksService } from './tasks.service';
-import { Task } from '../../entities/task.entity';
-import { Project } from '../../entities/project.entity';
+import { Task } from './entities/task.entity';
+import { Project } from '../projects/entities/project.entity';
 
 @Module({
   imports: [forwardRef(() => require('../auth/auth.module').AuthModule), TypeOrmModule.forFeature([Task, Project])],

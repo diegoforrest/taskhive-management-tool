@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
-import { User } from './user.entity';
-import { Task } from './task.entity';
-import { ChangeLog } from './changelog.entity';
+import { User } from '../../users/entities/user.entity';
+import { Task } from '../../tasks/entities/task.entity';
+import { ChangeLog } from '../../changelogs/entities/changelog.entity';
 
 export enum ProjectStatus {
   IN_PROGRESS = 'In Progress',

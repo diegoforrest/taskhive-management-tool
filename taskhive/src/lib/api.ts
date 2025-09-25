@@ -1,8 +1,5 @@
-// FOR DEPLOYED VERSION
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://taskhive-backend-cjry.onrender.com';
-
-// //FOR LOCAL DEV VERSION
-// const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+// Default to local backend during development unless NEXT_PUBLIC_API_URL is set
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:3001';
 
 interface LoginRequest {
   user_id: string; // Can be either numeric string or email
@@ -52,6 +49,15 @@ const axiosInstance: AxiosInstance = axios.create({
     'Content-Type': 'application/json',
   }
 });
+
+// Allow synchronous setting/clearing of Authorization header from other modules
+export function setAccessToken(token: string | null) {
+  if (token) {
+    axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  } else {
+    delete axiosInstance.defaults.headers.common['Authorization'];
+  }
+}
 
 // Centralized response/error interceptor to normalize errors across the app.
 axiosInstance.interceptors.response.use(
@@ -129,10 +135,17 @@ export const authApi = {
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
     console.log('Real API login request:', credentials);
     
-    return (await apiRequest('/testlogin', {
+    const res = (await apiRequest('/testlogin', {
       method: 'POST',
       data: credentials,
-    })) as LoginResponse;
+    })) as any;
+
+    // Normalize backend shape: some endpoints return `access_token` while the frontend expects `token`.
+    if (res && !res.token && res.access_token) {
+      res.token = res.access_token;
+    }
+
+    return res as LoginResponse;
   },
 
   register: async (userData: RegisterRequest): Promise<RegisterResponse> => {

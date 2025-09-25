@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
-import { User } from './user.entity';
-import { Project } from './project.entity';
-import { Task } from './task.entity';
+import { User } from '../../users/entities/user.entity';
+import { Project } from '../../projects/entities/project.entity';
+import { Task } from '../../tasks/entities/task.entity';
 
 @Entity('change_logs')
 export class ChangeLog {

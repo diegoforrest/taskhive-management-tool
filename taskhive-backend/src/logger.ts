@@ -1,7 +1,6 @@
 import { Logger } from '@nestjs/common';
 
-// Simple centralized logger wrapper so we can avoid using console.* directly
-// and easily control production/dev logging levels.
+
 const logger = new Logger('taskhive-backend');
 
 export default logger;

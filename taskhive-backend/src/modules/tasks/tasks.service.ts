@@ -1,8 +1,8 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Task } from '../../entities/task.entity';
-import { Project } from '../../entities/project.entity';
+import { Task } from './entities/task.entity';
+import { Project } from '../projects/entities/project.entity';
 import { AuthService } from '../auth/auth.service';
 
 @Injectable()

@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
-import { User } from './user.entity';
-import { Project } from './project.entity';
-import { ChangeLog } from './changelog.entity';
+import { User } from '../../users/entities/user.entity';
+import { Project } from '../../projects/entities/project.entity';
+import { ChangeLog } from '../../changelogs/entities/changelog.entity';
 
 export enum TaskStatus {
   TODO = 'Todo',

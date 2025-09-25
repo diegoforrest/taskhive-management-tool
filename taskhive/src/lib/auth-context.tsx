@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { setAccessToken } from './api'
 
 interface User {
   user_id: number
@@ -33,6 +34,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const authData = JSON.parse(savedAuth)
         setUser(authData.user)
         setToken(authData.token)
+        // ensure axios has the Authorization header set synchronously
+        setAccessToken(authData.token ?? null)
       } catch (error) {
         console.error('Error parsing saved auth data:', error)
         localStorage.removeItem('authContext')
@@ -44,6 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = (userData: User, userToken?: string) => {
     setUser(userData)
     setToken(userToken || null)
+    setAccessToken(userToken ?? null)
     const authData = { user: userData, token: userToken }
     localStorage.setItem('authContext', JSON.stringify(authData))
   }
@@ -51,6 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setUser(null)
     setToken(null)
+    setAccessToken(null)
     localStorage.removeItem('authContext')
     // Also clear remembered credentials when logging out
     localStorage.removeItem('rememberedEmail')
