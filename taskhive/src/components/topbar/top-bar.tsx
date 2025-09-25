@@ -51,8 +51,10 @@ export function TopBar() {
   const [isSearching, setIsSearching] = React.useState(false)
   
   const handleLogout = () => {
+    setIsSearching(false)
     logout()
-    router.push('/')
+    // navigate to home
+    try { router.push('/') } catch {}
   }
 
   // Get user display name
@@ -223,6 +225,7 @@ export function TopBar() {
 
   return (
     <>
+    
   <Toaster position="top-center" />
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex h-14 items-center px-2 sm:px-4 gap-2 sm:gap-4">

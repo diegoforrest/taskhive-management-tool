@@ -32,9 +32,11 @@ export default function DashboardHome() {
   const [confirmArchiveOpen, setConfirmArchiveOpen] = useState(false);
   const [confirmTargetId, setConfirmTargetId] = useState<number | null>(null);
   const [fabPos, setFabPos] = useState<{ x: number; y: number }>(() => ({ x: 0, y: 0 }));
-  const draggingRef = useRef<{ active: boolean; startX: number; startY: number; origX: number; origY: number; moved: boolean }>({ active: false, startX: 0, startY: 0, origX: 0, origY: 0, moved: false });
+  const draggingRef = useRef<{ active: boolean; startX: number; startY: number; origX: number; origY: number; moved: boolean; pointerId?: number; }>({ active: false, startX: 0, startY: 0, origX: 0, origY: 0, moved: false });
   const draggingStateRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
+  const lastPointerRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const rafRef = useRef<number | null>(null);
   // note state not used; leave commented for future feature
   const [projects, setProjects] = useState<Project[]>([]);
   const projectsRef = useRef<Project[]>([]);
@@ -236,39 +238,67 @@ export default function DashboardHome() {
   useEffect(() => {
     const onPointerMove = (ev: PointerEvent) => {
       if (!draggingRef.current.active) return;
-      const dx = ev.clientX - draggingRef.current.startX;
-      const dy = ev.clientY - draggingRef.current.startY;
-      // mark moved when drag exceeds small threshold to distinguish from click
+      // record last pointer coords and schedule an rAF to update the fab position
+      lastPointerRef.current.x = ev.clientX;
+      lastPointerRef.current.y = ev.clientY;
+
+      const dx = lastPointerRef.current.x - draggingRef.current.startX;
+      const dy = lastPointerRef.current.y - draggingRef.current.startY;
       if (!draggingRef.current.moved && Math.hypot(dx, dy) > 6) draggingRef.current.moved = true;
-      setFabPos({ x: draggingRef.current.origX + dx, y: draggingRef.current.origY + dy });
+
+      if (rafRef.current == null) {
+          rafRef.current = requestAnimationFrame(() => {
+          rafRef.current = null;
+          try {
+            const margin = 24;
+            const btnSize = 56;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            const newX = draggingRef.current.origX + (lastPointerRef.current.x - draggingRef.current.startX);
+            const newY = draggingRef.current.origY + (lastPointerRef.current.y - draggingRef.current.startY);
+            const nx = Math.max(margin, Math.min(newX, vw - margin - btnSize));
+            const ny = Math.max(margin, Math.min(newY, vh - margin - btnSize));
+            // use integer pixels to avoid sub-pixel rounding jank
+            setFabPos({ x: Math.round(nx), y: Math.round(ny) });
+          } catch (_e) {
+            // ignore
+          }
+        });
+      }
     };
       const onPointerUp = () => {
       const wasMoved = draggingRef.current.moved;
       draggingRef.current.active = false;
       draggingRef.current.moved = false;
-  draggingStateRef.current = false; // ended dragging so re-enable transitions
-  try { setIsDragging(false); } catch {}
+      draggingStateRef.current = false; // ended dragging so re-enable transitions
+      try { setIsDragging(false); } catch {}
+
+      // cancel any pending rAF
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
 
       if (wasMoved) {
         // suppress the upcoming click event (if any)
         suppressClickRef.current = true;
         window.setTimeout(() => { suppressClickRef.current = false; }, 50);
-        // Snap to nearest corner if it was moved
-        const snapToCorner = () => {
+        // Snap to nearest corner using the last pointer coordinates (more reliable on touch)
+        try {
           const margin = 24; // distance from edge
+          const btnSize = 56;
           const vw = window.innerWidth;
           const vh = window.innerHeight;
-          let nx = fabPos.x;
-          let ny = fabPos.y;
-          // constrain inside viewport
-          nx = Math.max(margin, Math.min(nx, vw - margin - 56));
-          ny = Math.max(margin, Math.min(ny, vh - margin - 56));
-          // find nearest corner
+          // compute current position based on last pointer to avoid using stale state
+          const curX = draggingRef.current.origX + (lastPointerRef.current.x - draggingRef.current.startX);
+          const curY = draggingRef.current.origY + (lastPointerRef.current.y - draggingRef.current.startY);
+          const nx = Math.max(margin, Math.min(curX, vw - margin - btnSize));
+          const ny = Math.max(margin, Math.min(curY, vh - margin - btnSize));
           const corners = [
             { x: margin, y: margin }, // top-left
-            { x: vw - margin - 56, y: margin }, // top-right
-            { x: margin, y: vh - margin - 56 }, // bottom-left
-            { x: vw - margin - 56, y: vh - margin - 56 }, // bottom-right
+            { x: vw - margin - btnSize, y: margin }, // top-right
+            { x: margin, y: vh - margin - btnSize }, // bottom-left
+            { x: vw - margin - btnSize, y: vh - margin - btnSize }, // bottom-right
           ];
           let best = corners[0];
           let bestDist = Infinity;
@@ -276,10 +306,10 @@ export default function DashboardHome() {
             const d = Math.hypot(nx - c.x, ny - c.y);
             if (d < bestDist) { bestDist = d; best = c; }
           }
-          setFabPos({ x: best.x, y: best.y });
-        };
-
-  try { snapToCorner(); } catch { /* ignore */ }
+          setFabPos({ x: Math.round(best.x), y: Math.round(best.y) });
+        } catch (_err) {
+          // ignore
+        }
       }
     };
     window.addEventListener('pointermove', onPointerMove);
@@ -1085,20 +1115,25 @@ export default function DashboardHome() {
         aria-label="Open archived projects"
         onClick={() => { if (!suppressClickRef.current) setArchiveDialogOpen(true); }}
         onPointerDown={(e) => {
-          try {
-            draggingRef.current.active = true;
-            draggingStateRef.current = true; // disable transitions while dragging
-            setIsDragging(true);
-            const pe = e as unknown as PointerEvent;
-            draggingRef.current.startX = pe.clientX;
-            draggingRef.current.startY = pe.clientY;
-            draggingRef.current.origX = fabPos.x;
-            draggingRef.current.origY = fabPos.y;
-          } catch {}
-        }}
+            try {
+              const ev = e as unknown as PointerEvent;
+              // record pointer id so we can ignore other pointers
+              draggingRef.current.pointerId = (ev && (ev as PointerEvent).pointerId) || undefined;
+              draggingRef.current.active = true;
+              draggingStateRef.current = true; // disable transitions while dragging
+              setIsDragging(true);
+              draggingRef.current.startX = ev.clientX;
+              draggingRef.current.startY = ev.clientY;
+              draggingRef.current.origX = fabPos.x;
+              draggingRef.current.origY = fabPos.y;
+              // capture the pointer on the element to ensure we receive move/up even if the finger leaves the element
+              try { (e.currentTarget as Element).setPointerCapture?.((ev as PointerEvent).pointerId); } catch (err) { /* ignore */ }
+            } catch {}
+          }}
   // position using transform for smoother GPU-accelerated animation
   // position using transform for smoother GPU-accelerated animation
-  style={{ transform: `translate3d(${fabPos.x}px, ${fabPos.y}px, 0)`, left: 0, top: 0, backgroundColor: 'rgba(0,0,0,0.85)' }}
+  // touchAction none prevents the browser from hijacking touch gestures on mobile
+  style={{ transform: `translate3d(${fabPos.x}px, ${fabPos.y}px, 0)`, left: 0, top: 0, backgroundColor: 'rgba(0,0,0,0.85)', touchAction: 'none' }}
         className={
           `fixed z-50 rounded-full p-3 shadow-lg focus:outline-none` +
           (isDragging ? ' transition-none' : ' transition-all duration-300 ease-out hover:shadow-2xl')

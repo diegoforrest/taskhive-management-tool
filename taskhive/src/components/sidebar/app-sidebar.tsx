@@ -83,6 +83,7 @@ export function AppSidebar() {
   const [reviewGroupOpen, setReviewGroupOpen] = useState(false)
   // Track whether the Completed group (parent) is open
   const [completedGroupOpen, setCompletedGroupOpen] = useState(false)
+  
 
   // No automatic opening of dropdowns based on route. Dropdowns are
   // controlled exclusively by user interaction (clicking the chevron).
@@ -273,7 +274,7 @@ export function AppSidebar() {
 
   const handleLogout = () => {
     logout()
-    router.push('/')
+    try { router.push('/') } catch {}
   }
 
   // Dynamic navigation items based on authentication status
@@ -307,6 +308,8 @@ export function AppSidebar() {
   })
 
   return (
+    <>
+    
     <Sidebar collapsible="icon" className="transition-all duration-200 ease-in-out">
       <SidebarHeader>
     <SidebarMenu>
@@ -698,6 +701,7 @@ export function AppSidebar() {
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
+    </>
   )
 }
 

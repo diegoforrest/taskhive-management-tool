@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react";
 import Link from "next/link";
@@ -19,8 +19,6 @@ export function SignInForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const [navigating, setNavigating] = useState(false)
-  const wrapperRef = useRef<HTMLDivElement | null>(null)
   const [error, setError] = useState("")
   const [successMessage, setSuccessMessage] = useState("")
   const [formData, setFormData] = useState({
@@ -64,13 +62,12 @@ export function SignInForm() {
       }))
     }
     // mark as mounted so the form is fully interactive
-    // prevents quick clicks during initial render/animations causing jarring navigation
     setMounted(true)
   }, [])
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
+  setIsLoading(true)
     setError("")
 
     if (!formData.email || !formData.password) {
@@ -114,46 +111,17 @@ export function SignInForm() {
     // Some backends return `access_token` while others use `token` — normalize here
     const token = (response as any).token || (response as any).access_token || null;
     login(userData, token)
-        
-  // Compute a NAV_DELAY_MS derived from the element's CSS animation/transition
-  const parseTimeToMs = (s: string) => {
-    if (!s) return 0;
-    // animationDuration/transitionDuration can be comma-separated lists
-    const parts = s.split(',').map(p => p.trim()).filter(Boolean);
-    let max = 0;
-    for (const part of parts) {
-      if (part.endsWith('ms')) {
-        const v = parseFloat(part.replace('ms', ''));
-        if (!isNaN(v)) max = Math.max(max, v);
-      } else if (part.endsWith('s')) {
-        const v = parseFloat(part.replace('s', '')) * 1000;
-        if (!isNaN(v)) max = Math.max(max, v);
-      }
-    }
-    return max;
-  }
 
-  let NAV_DELAY_MS = 300; // sensible default
-  try {
-    if (wrapperRef.current) {
-      const cs = getComputedStyle(wrapperRef.current as Element);
-      const anim = parseTimeToMs(cs.animationDuration || '');
-      const trans = parseTimeToMs(cs.transitionDuration || '');
-      const candidate = Math.max(anim, trans);
-      if (candidate > 0) NAV_DELAY_MS = Math.max(80, candidate); // ensure at least tiny delay
+    // Redirect to dashboard immediately
+    try {
+      router.push('/dashboard')
+    } catch {
+      // ignore navigation errors
     }
-  } catch (e) {
-    // ignore and use default
-  }
-
-  // Hide the form immediately and show a lightweight loading placeholder
-  setNavigating(true)
-  await new Promise((res) => setTimeout(res, NAV_DELAY_MS));
-  // Redirect to dashboard after brief delay
-  await router.push('/dashboard')
-      } else {
-        setError((response && (response as any).message) || 'Invalid credentials')
-      }
+        } else {
+            setError((response && (response as any).message) || 'Invalid credentials')
+            setIsLoading(false)
+          }
     } catch (error: unknown) {
       console.error('Login error:', error)
       let message = 'Login failed. Please try again.'
@@ -162,6 +130,7 @@ export function SignInForm() {
         if (typeof errObj.message === 'string') message = errObj.message
       }
       setError(message)
+          setIsLoading(false)
     } finally {
       setIsLoading(false)
     }
@@ -172,15 +141,6 @@ export function SignInForm() {
   }
 
   return (
-    // Show a compact loading placeholder while navigating to avoid form linger
-    navigating ? (
-      <div className="w-full max-w-md mx-auto h-64 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground text-sm">Signing in…</p>
-        </div>
-      </div>
-    ) : (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader className="space-y-1">
         <div className="flex items-center justify-center">
@@ -291,8 +251,6 @@ export function SignInForm() {
           </Link>
         </div>
       </CardContent>
-    </Card>
+      </Card>
   )
-);
-
 }
