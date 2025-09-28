@@ -1,0 +1,96 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    // Project-specific terms
+    "taskhive",
+    "shadcn",
+    "bookmarkable",
+    "unarchiving",
+    "collapsibles",
+    "topbar",
+    "toreview",
+    "wireframes",
+    "testlogin",
+    "usecases",
+    "lpignore",
+    "jank",
+    "nums",
+    "Deduplicator",
+
+    // Technical terms
+    "middlewares",
+    "readonly",
+    "typeof",
+    "instanceof",
+    "eslint",
+    "tsconfig",
+    "nextjs",
+    "lucide",
+    "tailwindcss",
+    "clsx",
+    "radix",
+    "cmdk",
+    "framer",
+    "hookform",
+    "tanstack",
+    "axios",
+    "bcrypt",
+    "jsonwebtoken",
+    "nestjs",
+    "typeorm",
+    "mysql",
+
+    // UI/UX terms
+    "navbar",
+    "sidebar",
+    "dropdown",
+    "tooltip",
+    "dialog",
+    "checkbox",
+    "textarea",
+    "scrollbar",
+    "viewport",
+    "clickable",
+    "hoverable",
+    "draggable",
+    "focusable",
+
+    // Development terms
+    "async",
+    "await",
+    "destructuring",
+    "refactor",
+    "backend",
+    "frontend",
+    "fullstack",
+    "devtools",
+    "localhost",
+    "middleware",
+    "runtime"
+  ],
+  "flagWords": [],
+  "ignorePaths": [
+    "node_modules/**",
+    ".next/**",
+    "dist/**",
+    "build/**",
+    "coverage/**",
+    "*.min.js",
+    "*.map"
+  ],
+  "overrides": [
+    {
+      "filename": "**/*.{ts,tsx,js,jsx}",
+      "caseSensitive": false
+    },
+    {
+      "filename": "**/*.md",
+      "words": [
+        "apis",
+        "configs",
+        "repo"
+      ]
+    }
+  ]
+}

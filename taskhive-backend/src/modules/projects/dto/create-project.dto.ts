@@ -7,9 +7,6 @@ export enum ProjectPriority {
 }
 
 export class CreateProjectDto {
-  @IsInt()
-  user_id: number;
-
   @IsNotEmpty()
   @IsString()
   name: string;

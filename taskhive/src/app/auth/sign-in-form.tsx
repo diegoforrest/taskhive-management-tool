@@ -7,28 +7,27 @@ import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import Image from 'next/image';
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { authApi } from "@/lib/api";
-import { useAuth } from "@/lib/auth-context";
+import { Button } from "@/presentation/components/ui/button";
+import { Input } from "@/presentation/components/ui/input";
+import { Label } from "@/presentation/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/presentation/components/ui/card";
+import { Checkbox } from "@/presentation/components/ui/checkbox";
+import { useAuth } from "@/presentation/hooks/useAuth";
 
 export function SignInForm() {
-  const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [mounted, setMounted] = useState(false)
-  const [error, setError] = useState("")
-  const [successMessage, setSuccessMessage] = useState("")
+  const { login } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [formData, setFormData] = useState({
     email: "",
     password: "",
     rememberMe: false,
-  })
+  });
   
-  const { login } = useAuth()
-  const router = useRouter()
+  const router = useRouter();
   
   // Check for success message from registration and load saved credentials
   React.useEffect(() => {
@@ -54,7 +53,7 @@ export function SignInForm() {
         password: savedPassword,
         rememberMe: true
       }))
-  } else if (emailParam) {
+    } else if (emailParam) {
       // Pre-fill email from registration redirect
       setFormData(prev => ({
         ...prev,
@@ -66,79 +65,50 @@ export function SignInForm() {
   }, [])
   
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-  setIsLoading(true)
-    setError("")
+    e.preventDefault();
+    setIsLoading(true);
+    setError("");
 
     if (!formData.email || !formData.password) {
-      setError("Please fill in all fields")
-      setIsLoading(false)
-      return
+      setError("Please fill in all fields");
+      setIsLoading(false);
+      return;
     }
 
     try {
-      // Attempt login via API
-      const response = await authApi.login({
-        user_id: formData.email, // Using email as user_id for login
-        password: formData.password
-      })
-
-      // If login succeeded, persist credentials (optional) and set user in context
-      if (response && (response as any).success && (response as any).user) {
-        const respUser = (response as any).user;
-        // Handle Remember Me functionality
-        if (formData.rememberMe) {
-          // Save credentials to localStorage
-          localStorage.setItem('rememberedEmail', formData.email)
-          localStorage.setItem('rememberedPassword', formData.password)
-          localStorage.setItem('rememberMe', 'true')
-        } else {
-          // Clear saved credentials if not remembering
-          localStorage.removeItem('rememberedEmail')
-          localStorage.removeItem('rememberedPassword')
-          localStorage.removeItem('rememberMe')
-        }
-
-        // Store user in context with all data from backend response
-        const userData = {
-          user_id: respUser.user_id, // This should be the numeric ID from backend
-          email: respUser.email || formData.email,
-          firstName: respUser.firstName,
-          lastName: respUser.lastName
-        };
-        
-    // store user in context
-    // Some backends return `access_token` while others use `token` — normalize here
-    const token = (response as any).token || (response as any).access_token || null;
-    login(userData, token)
-
-    // Redirect to dashboard immediately
-    try {
-      router.push('/dashboard')
-    } catch {
-      // ignore navigation errors
-    }
-        } else {
-            setError((response && (response as any).message) || 'Invalid credentials')
-            setIsLoading(false)
-          }
-    } catch (error: unknown) {
-      console.error('Login error:', error)
-      let message = 'Login failed. Please try again.'
-      if (typeof error === 'object' && error !== null) {
-        const errObj = error as Record<string, unknown>
-        if (typeof errObj.message === 'string') message = errObj.message
+      // Handle Remember Me functionality
+      if (formData.rememberMe) {
+        localStorage.setItem('rememberedEmail', formData.email);
+        localStorage.setItem('rememberedPassword', formData.password);
+        localStorage.setItem('rememberMe', 'true');
+      } else {
+        localStorage.removeItem('rememberedEmail');
+        localStorage.removeItem('rememberedPassword');
+        localStorage.removeItem('rememberMe');
       }
-      setError(message)
-          setIsLoading(false)
+
+      // Use Clean Architecture login
+      const result = await login({
+        user_id: formData.email,
+        password: formData.password
+      });
+
+      if (result.success) {
+        router.push('/dashboard');
+      } else {
+        setError(result.message || 'Login failed');
+      }
+    } catch (err: any) {
+      console.error("Login error:", err);
+      setError(err.message || "Login failed. Please try again.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleInputChange = (field: string, value: string | boolean) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-  }
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
 
   return (
     <Card className="w-full max-w-md mx-auto">
@@ -252,5 +222,5 @@ export function SignInForm() {
         </div>
       </CardContent>
       </Card>
-  )
+  );
 }

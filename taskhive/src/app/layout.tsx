@@ -1,19 +1,18 @@
-// app/layout.tsx
+// app/layout.tsx - Updated to use new architecture
 import { Inter } from "next/font/google"
 import { cookies } from "next/headers"
 import type { Metadata } from "next"
 import "./globals.css"
-import SidebarShell from "../components/sidebar/sidebar-shell"
-import { ThemeProvider } from "@/components/theme/theme-provider"
-import { TopBar } from "@/components/topbar/top-bar"
-import { AuthProvider } from "@/lib/auth-context"
+import SidebarShell from "../presentation/components/sidebar/sidebar-shell"
+import { ThemeProvider } from "@/presentation/components/theme/theme-provider"
+import { AuthProvider } from "@/presentation/providers/AuthProvider"
 import { SearchProvider } from "@/lib/search-context"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "TaskHive",
-  description: "TaskHive",
+  description: "TaskHive - Modern Task Management",
 }
 
 export default async function RootLayout({

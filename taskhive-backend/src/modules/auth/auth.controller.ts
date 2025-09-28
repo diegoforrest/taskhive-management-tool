@@ -2,6 +2,8 @@ import { Controller, Post, Get, Body, Query, Param, HttpCode, HttpStatus, UseGua
 import { AuthService } from './auth.service';
 import { ProjectsService } from '../projects/projects.service';
 import { TasksService } from '../tasks/tasks.service';
+import { UsersService } from '../users/users.service';
+import { ChangelogsService } from '../changelogs/changelogs.service';
 import {
 	RegisterDto,
 	LoginDto,
@@ -22,7 +24,13 @@ import { RolesGuard } from './roles.guard';
 
 @Controller()
 export class AuthController {
-	constructor(private authService: AuthService, private projectsService: ProjectsService, private tasksService: TasksService) {}
+	constructor(
+		private authService: AuthService, 
+		private projectsService: ProjectsService, 
+		private tasksService: TasksService,
+		private usersService: UsersService,
+		private changelogsService: ChangelogsService
+	) {}
 
 	@Post('testlogin')
 	@HttpCode(HttpStatus.OK)
@@ -43,8 +51,8 @@ export class AuthController {
 		const userId = Number(req.user?.user_id);
 		if (!userId) throw new UnauthorizedException();
 		const { name, description, due_date, priority } = createProjectDto;
-		// service expects description as string (not undefined) so ensure it's a string
-		return this.authService.createProject(userId, name, description ?? '', due_date, priority);
+		// Delegate to ProjectsService for proper separation of concerns
+		return this.projectsService.createProject(userId, name, description ?? '', due_date, priority);
 	}
 
 	@Get('test03/get_projects')
@@ -53,7 +61,8 @@ export class AuthController {
 	async getProjects(@Request() req: any) {
 		const userId = Number(req.user?.user_id);
 		if (!userId) throw new UnauthorizedException();
-		return this.authService.getProjectsByUserId(userId);
+		// Delegate to ProjectsService for proper separation of concerns
+		return this.projectsService.getProjectsByUserId(userId);
 	}
 
 	@Post('test04/update_project/:id')
@@ -66,8 +75,8 @@ export class AuthController {
 		if (isNaN(numericId)) {
 			throw new Error('Invalid project id');
 		}
-		// Cast to any to allow DTO which may include null for due_date; service normalizes values.
-		return this.authService.updateProject(numericId, updateProjectDto);
+		// Delegate to ProjectsService for proper separation of concerns
+		return this.projectsService.updateProject(numericId, updateProjectDto);
 	}
 
 	@Post('test05/create_task')
@@ -77,7 +86,8 @@ export class AuthController {
 		const userId = Number(req.user?.user_id);
 		if (!userId) throw new UnauthorizedException();
 		const { project_id, name, contents, priority, due_date, assignee } = createTaskDto;
-		return this.authService.createTask(project_id, {
+		// Delegate to TasksService for proper separation of concerns
+		return this.tasksService.createTask(project_id, {
 			name,
 			contents,
 			priority,
@@ -96,7 +106,8 @@ export class AuthController {
 		if (isNaN(numericProjectId)) {
 			throw new Error('Invalid project_id');
 		}
-		return this.authService.getTasksByProjectId(numericProjectId);
+		// Delegate to TasksService for proper separation of concerns
+		return this.tasksService.getTasksByProjectId(numericProjectId);
 	}
 
 	@Post('test07/delete_task/:id')
@@ -123,8 +134,8 @@ export class AuthController {
 		if (isNaN(numericId)) {
 			throw new Error('Invalid task id');
 		}
-		// Cast to any so UpdateTaskDto with nullable due_date is accepted; service normalizes values.
-		return this.authService.updateTask(numericId, updateTaskDto as any);
+		// Delegate to TasksService for proper separation of concerns
+		return this.tasksService.updateTask(numericId, updateTaskDto);
 	}
 
 	@Post('test10/create_changelog')
@@ -134,7 +145,8 @@ export class AuthController {
 		const userId = Number(req.user?.user_id);
 		if (!userId) throw new UnauthorizedException();
 		const { task_id, project_id, old_status, new_status, remark } = body;
-		return this.authService.createChangelog(task_id ?? null, old_status ?? null, new_status ?? null, remark ?? '', userId ?? null, project_id ?? null);
+		// Delegate to ChangelogsService for proper separation of concerns
+		return this.changelogsService.createChangelog(task_id ?? null, old_status ?? null, new_status ?? null, remark ?? '', userId ?? null, project_id ?? null);
 	}
 
 	@Get('test10/get_changelogs')
@@ -145,7 +157,8 @@ export class AuthController {
 		if (!userId) throw new UnauthorizedException();
 		const t = task_id ? parseInt(task_id, 10) : null;
 		const p = project_id ? parseInt(project_id, 10) : null;
-		return this.authService.getChangelogs(t, p);
+		// Delegate to ChangelogsService for proper separation of concerns
+		return this.changelogsService.getChangelogs(t, p);
 	}
 
 	@Post('test09/delete_project/:id')
@@ -173,8 +186,9 @@ export class AuthController {
 		if (isNaN(numericId)) {
 			throw new Error('Invalid user id');
 		}
-		// ignore client-supplied id and operate on authenticated user
-		return this.authService.updateUser(userId, body);
+		// Delegate to UsersService for proper separation of concerns
+		// Ignore client-supplied id and operate on authenticated user
+		return this.usersService.updateUser(userId, body);
 	}
 
 	// Change password endpoint - verifies current password and updates to new password
@@ -189,7 +203,8 @@ export class AuthController {
 			throw new Error('Invalid user id');
 		}
 		const { currentPassword, newPassword } = body;
-		return this.authService.changePassword(userId, currentPassword, newPassword);
+		// Delegate to UsersService for proper separation of concerns
+		return this.usersService.changePassword(userId, currentPassword, newPassword);
 	}
 
 	// Verify password without changing it
@@ -203,7 +218,8 @@ export class AuthController {
 		if (isNaN(numericId)) {
 			throw new Error('Invalid user id');
 		}
-		return this.authService.verifyPassword(userId, body.password);
+		// Delegate to UsersService for proper separation of concerns
+		return this.usersService.verifyPassword(userId, body.password);
 	}
 
 	// Request password reset (sends an email with a reset link)
@@ -219,12 +235,11 @@ export class AuthController {
 	@HttpCode(HttpStatus.OK)
 	async resetPassword(@Body() body: ResetPasswordDto) {
 		const { tid, token, newPassword } = body;
-		// Support both tid+token flow and token-only flow
-		if (tid && token) {
-			return this.authService.resetPasswordWithId(tid, token, newPassword);
+		// Use the clean AuthService method - only support tid+token flow for security
+		if (!tid || !token) {
+			throw new Error('Both tid and token are required for password reset');
 		}
-		// fallback: token-only reset (scans tokens)
-		return this.authService.resetPassword(token || '', newPassword);
+		return this.authService.resetPasswordWithId(tid, token, newPassword);
 	}
 
 	@Post('refresh')

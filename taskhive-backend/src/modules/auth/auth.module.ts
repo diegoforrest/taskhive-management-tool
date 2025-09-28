@@ -15,11 +15,16 @@ import { PasswordResetToken } from './password-reset-token.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { ProjectsModule } from '../projects/projects.module';
 import { TasksModule } from '../tasks/tasks.module';
+import { UsersModule } from '../users/users.module';
+import { ChangelogsModule } from '../changelogs/changelogs.module';
+import { UserManagementService, PasswordManagementService } from '../../application/services/user';
 
 @Module({
 	imports: [
 		forwardRef(() => ProjectsModule),
 		forwardRef(() => TasksModule),
+		forwardRef(() => UsersModule),
+		forwardRef(() => ChangelogsModule),
 		TypeOrmModule.forFeature([User, Project, Task, ChangeLog, PasswordResetToken, RefreshToken]),
 		PassportModule.register({ defaultStrategy: 'jwt' }),
 		JwtModule.registerAsync({
@@ -34,7 +39,7 @@ import { TasksModule } from '../tasks/tasks.module';
 		}),
 	],
 	controllers: [AuthController],
-	providers: [AuthService, JwtStrategy, RolesGuard],
-	exports: [AuthService, JwtStrategy, RolesGuard],
+	providers: [AuthService, JwtStrategy, RolesGuard, UserManagementService, PasswordManagementService],
+	exports: [AuthService, JwtStrategy, RolesGuard, UserManagementService, PasswordManagementService],
 })
 export class AuthModule {}

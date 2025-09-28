@@ -3,19 +3,20 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/presentation/components/ui/button";
+import { Input } from "@/presentation/components/ui/input";
+import { Label } from "@/presentation/components/ui/label";
+import { Textarea } from "@/presentation/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/presentation/components/ui/select";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/presentation/components/ui/card";
 import { ArrowLeft, Calendar, Target } from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
-import { authApi } from "@/lib/api";
+import { useAuth } from "@/presentation/hooks/useAuth";
+import { useProjects } from "@/presentation/hooks/useProjects";
 import { toast } from 'react-hot-toast';
 
 export default function NewProjectPage() {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const { createProject, isLoading: isCreatingProject } = useProjects();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -28,8 +29,7 @@ export default function NewProjectPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!user?.user_id) {
-      console.error('No user or user_id found in auth context:', user);
+    if (!isAuthenticated || !user) {
       toast.error('You must be logged in to create a project. Please log in first.');
       router.push('/auth/sign-in');
       return;
@@ -40,49 +40,32 @@ export default function NewProjectPage() {
       return;
     }
 
-  // More robust user_id parsing
-    let numericUserId: number;
-    
-    // First try to parse as number
-    if (typeof user.user_id === 'string') {
-      numericUserId = parseInt(user.user_id, 10);
-    } else if (typeof user.user_id === 'number') {
-      numericUserId = user.user_id;
-    } else {
-      console.error('Invalid user_id type:', typeof user.user_id, user.user_id);
-      toast.error('Invalid user ID format. Please log out and log back in.');
-      return;
-    }
-    
-    // Validate the parsed number
-    if (isNaN(numericUserId) || numericUserId <= 0) {
-      console.error('Cannot convert user_id to valid number:', user.user_id, '-> NaN or invalid');
-      toast.error(`Invalid user ID: "${user.user_id}". Please log out and log back in.`);
-      return;
-    }
-
     setIsLoading(true);
 
     try {
       const projectData = {
-        user_id: numericUserId,
         name: formData.name.trim(),
         description: formData.description.trim() || undefined,
         priority: formData.priority,
         due_date: formData.due_date || undefined,
+        userId: user.id.value, // Get the numeric ID from UserId value object
       };
 
-  const result = await authApi.createProject(projectData);
+      const result = await createProject(projectData);
       
-      // Dispatch custom event to trigger sidebar refresh
-      window.dispatchEvent(new CustomEvent('projectCreated', { detail: result }));
+      if (result.success) {
+        // Dispatch custom event to trigger sidebar refresh
+        window.dispatchEvent(new CustomEvent('projectCreated', { detail: result.project }));
 
-      toast.success('Project created successfully!');
+        toast.success('Project created successfully!');
 
-      // Small delay to ensure the project is saved and sidebar refreshes
-      setTimeout(() => {
-        router.push("/dashboard");
-      }, 500);
+        // Small delay to ensure the project is saved and sidebar refreshes
+        setTimeout(() => {
+          router.push("/dashboard");
+        }, 500);
+      } else {
+        toast.error(result.message || 'Failed to create project');
+      }
       
     } catch (error) {
       console.error("Error creating project:", error);
@@ -197,8 +180,8 @@ export default function NewProjectPage() {
                 <Button type="button" variant="outline" asChild>
                   <Link href="/dashboard">Cancel</Link>
                 </Button>
-                <Button type="submit" disabled={isLoading || !formData.name}>
-                  {isLoading ? "Creating..." : "Create Project"}
+                <Button type="submit" disabled={isLoading || isCreatingProject || !formData.name}>
+                  {(isLoading || isCreatingProject) ? "Creating..." : "Create Project"}
                 </Button>
               </div>
             </form>

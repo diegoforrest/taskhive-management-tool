@@ -4,13 +4,17 @@ import React, { useEffect, useState } from 'react';
 // Link not used in this view
 import { useParams } from 'next/navigation';
 import { Calendar, Gauge, Flame, Leaf, CircleCheckBig, CalendarCheck, User } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { authApi, tasksApi, Project, Task, ChangeLogEntry } from '@/lib/api';
-import { useAuth } from '@/lib/auth-context';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Button } from '@/presentation/components/ui/button';
+import { Badge } from '@/presentation/components/ui/badge';
+import { Card, CardContent } from '@/presentation/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/presentation/components/ui/dialog';
+import { tasksApi, ChangeLogEntry } from '@/lib/api';
+import { Project } from '@/core/domain/entities/Project';
+import { Task } from '@/core/domain/entities/Task';
+import { useAuth } from '@/presentation/hooks/useAuth';
+import { useProjects } from '@/presentation/hooks/useProjects';
+import { useTasks } from '@/presentation/hooks/useTasks';
+import { Avatar, AvatarFallback } from '@/presentation/components/ui/avatar';
 
 const getInitials = (name?: string | null) => {
 	if (!name) return 'U';
@@ -22,7 +26,9 @@ const getInitials = (name?: string | null) => {
 
 export default function CompletedPage() {
 	const params = useParams();
-	const { user, isAuthenticated } = useAuth();
+		const { user, isAuthenticated } = useAuth();
+	const { getProject, loadProjects } = useProjects();
+	const { loadTasksForProject } = useTasks();
 	const projectIdParam = params?.id;
 	const [project, setProject] = useState<Project | null>(null);
 	const [tasks, setTasks] = useState<Task[]>([]);
@@ -80,20 +86,18 @@ export default function CompletedPage() {
 
 				const userId = extractUserId(user) ?? 1;
 
-				// Try to load the single project via helper which filters the user's projects
+				// Try to load the single project via Clean Architecture
 				try {
-					const res = await authApi.getProject(projectId, userId);
-					if (mounted && res && res.success) setProject(res.data);
+					const res = await getProject(projectId);
+					if (mounted && res && res.success && res.project) setProject(res.project);
 				} catch {
 					// fallback: fetch all projects and find
 					try {
-						const projectsRes = await authApi.getProjects(userId);
-						const arr = Array.isArray(projectsRes)
-							? projectsRes
-							: (projectsRes && typeof projectsRes === 'object' && 'data' in (projectsRes as Record<string, unknown>) ? (projectsRes as Record<string, unknown>).data as unknown : []);
-						const candidates = Array.isArray(arr) ? (arr as Project[]) : [];
-						const found = candidates.find((p) => p.id === projectId) || null;
-						if (mounted) setProject(found);
+						const projectsRes = await loadProjects(userId);
+						if (mounted && projectsRes.success && projectsRes.projects) {
+							const found = projectsRes.projects.find((p) => p.id.value === projectId) || null;
+							setProject(found);
+						}
 					} catch (err) {
 						console.warn('Failed to load project', err);
 					}
@@ -101,11 +105,11 @@ export default function CompletedPage() {
 
 				// load tasks for this project
 				try {
-					const tRes = await authApi.getTasks(projectId);
-					const tArr = Array.isArray(tRes)
-						? tRes
-						: (tRes && typeof tRes === 'object' && 'data' in (tRes as Record<string, unknown>) ? (tRes as Record<string, unknown>).data as unknown : []);
-					if (mounted && Array.isArray(tArr)) setTasks(tArr as Task[]);
+					const tRes = await loadTasksForProject(projectId);
+					if (mounted && tRes.success && tRes.tasks) {
+						const completedTasks = tRes.tasks.filter((t) => t.status === 'Completed' || t.status === 'Done');
+						setTasks(completedTasks);
+					}
 				} catch {
 					// Failed to load tasks for project; fall back to empty list
 					if (mounted) setTasks([]);
@@ -138,11 +142,11 @@ export default function CompletedPage() {
 				const arrRaw = Array.isArray(res) ? res : (res && typeof res === 'object' && 'data' in (res as Record<string, unknown>) ? (res as Record<string, unknown>).data as unknown : []);
 				const arr = Array.isArray(arrRaw) ? arrRaw : [];
 				setSelectedTaskHistory(arr as ChangeLogEntry[]);
-			setSelectedTaskTitle(task.name || task.title || 'Task');
+			setSelectedTaskTitle(task.name || 'Task');
 		} catch {
 			// Failed to load task history
 			setSelectedTaskHistory([]);
-			setSelectedTaskTitle(task.name || task.title || 'Task');
+			setSelectedTaskTitle(task.name || 'Task');
 		}
 	};
 
@@ -299,7 +303,7 @@ export default function CompletedPage() {
 										<div className="text-xs text-muted-foreground">Owner:</div>
 										<div className="flex items-center gap-2 mt-1">
 											<Avatar className="h-8 w-8">
-												<AvatarFallback>{getInitials(getOwnerFullName() || project?.name || user?.email || String(project?.user_id || user?.user_id || 'U'))}</AvatarFallback>
+												<AvatarFallback>{getInitials(getOwnerFullName() || project?.name || user?.email || String(project?.user_id || user?.id || 'U'))}</AvatarFallback>
 											</Avatar>
 											<div>
 												<div className="font-medium">{getOwnerFullName() || (project?.name ? project.name.split(' ')[0] : user?.email?.split('@')[0] || 'Owner')}</div>

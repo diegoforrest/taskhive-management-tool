@@ -1,13 +1,14 @@
 import { Module } from '@nestjs/common';
-import { AuthModule } from '../auth/auth.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { ChangelogsService } from './changelogs.service';
-// If a module-local controller exists, import it; otherwise the routings are handled by auth controller's changelog endpoints.
 import { ChangelogsController } from './changelogs.controller';
+import { ChangeLog } from './entities/changelog.entity';
+import { ChangelogService } from '../../application/services/changelog/changelog.service';
 
 @Module({
-  imports: [AuthModule],
+  imports: [TypeOrmModule.forFeature([ChangeLog])],
   controllers: [ChangelogsController],
-  providers: [ChangelogsService],
-  exports: [ChangelogsService],
+  providers: [ChangelogsService, ChangelogService],
+  exports: [ChangelogsService, ChangelogService],
 })
 export class ChangelogsModule {}

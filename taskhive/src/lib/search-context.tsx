@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { Task } from '@/lib/api';
+import { Task } from '@/core/domain/entities/Task';
 
 interface SearchContextType {
   highlightedTaskId: number | null;

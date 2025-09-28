@@ -1,5 +1,5 @@
 "use client"
-import { ThemeProvider } from "@/components/theme/theme-provider"
+import { ThemeProvider } from "@/presentation/components/theme/theme-provider"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { ReactNode } from "react"

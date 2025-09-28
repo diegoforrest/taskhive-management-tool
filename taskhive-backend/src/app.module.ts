@@ -34,8 +34,7 @@ import { ChangelogsModule } from './modules/changelogs/changelogs.module';
         if (sslEnabled) {
           const caEnv = configService.get('DB_SSL_CA');
           const caPath = configService.get('DB_SSL_CA_PATH');
-          // If user uploaded secret file to Render Secret Files but did not set DB_SSL_CA_PATH,
-          // try the common Render path /etc/secrets/aiven_ca.pem automatically.
+
           let resolvedCaPath = caPath;
           const defaultRenderSecretPath = '/etc/secrets/aiven_ca.pem';
           if (!resolvedCaPath) {
@@ -54,11 +53,9 @@ import { ChangelogsModule } from './modules/changelogs/changelogs.module';
           let caValue: Buffer | undefined;
 
           if (caEnv) {
-            // handle both literal newlines and escaped \n
             const normalized = caEnv.includes('\\n') ? caEnv.replace(/\\n/g, '\n') : caEnv.replace(/\r?\n/g, '\n');
             caValue = Buffer.from(normalized);
           } else if (resolvedCaPath) {
-            // Log whether the secret file exists at the expected Render path
             try {
               const exists = fs.existsSync(resolvedCaPath);
               log.log(`[DB] CA path exists: ${resolvedCaPath} ${exists}`);
@@ -72,11 +69,9 @@ import { ChangelogsModule } from './modules/changelogs/changelogs.module';
           }
 
           if (caValue) {
-            // mysql2/typeorm accept the CA as a string (PEM). Ensure we pass a utf8 string
             extra = { ssl: { ca: caValue.toString('utf8'), rejectUnauthorized } };
             log.log(`[DB] SSL enabled, CA loaded, rejectUnauthorized=${rejectUnauthorized}`);
           } else {
-            // Pass an object; include rejectUnauthorized to allow temporary overrides for debugging
             extra = { ssl: { rejectUnauthorized } };
             log.log(`[DB] SSL enabled, no CA provided, rejectUnauthorized=${rejectUnauthorized}`);
           }
