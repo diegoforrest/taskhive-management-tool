@@ -3,33 +3,33 @@
 import * as React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { useAuthContext } from "@/presentation/providers/AuthProvider"
-import { Input } from "@/presentation/components/ui/input"
-import { Button } from "@/presentation/components/ui/button"
-import { Card } from "@/presentation/components/ui/card"
-import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription, DialogTrigger } from "@/presentation/components/ui/dialog"
+import { useAuth } from "@/lib/auth-context"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { authApi } from "@/lib/api"
+import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
 import { toast } from 'react-hot-toast'
 import { Eye, EyeOff } from 'lucide-react'
 
 export default function ProfilePage() {
-  const { user, logout, changePassword } = useAuthContext()
+  const { user, login } = useAuth()
   const router = useRouter()
   const [firstName, setFirstName] = useState(user?.firstName || "")
   const [lastName, setLastName] = useState(user?.lastName || "")
-  const [email, setEmail] = useState(user?.email?.value || "")
+  const [email, setEmail] = useState(user?.email || "")
   const [saving, setSaving] = useState(false)
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
-  const [original, setOriginal] = useState({ firstName: user?.firstName || "", lastName: user?.lastName || "", email: user?.email?.value || "" })
   
   // Use react-hot-toast for transient notices
+  const original = { firstName: user?.firstName || "", lastName: user?.lastName || "", email: user?.email || "" }
 
   // Keep form fields in sync with the auth `user` when it becomes available (e.g., after refresh)
   React.useEffect(() => {
     if (!user) return
     setFirstName(user.firstName || "")
     setLastName(user.lastName || "")
-    setEmail(user.email?.value || "")
-    setOriginal({ firstName: user.firstName || "", lastName: user.lastName || "", email: user.email?.value || "" })
+    setEmail(user.email || "")
     // we intentionally do not reset notice/other UI state here
   }, [user])
 
@@ -47,81 +47,18 @@ export default function ProfilePage() {
   setSaving(true)
     try {
       // Call backend to persist profile changes
-      if (user && user.id) {
-        const updatedUser = await authApi.updateUser(user.id, { email, firstName, lastName })
-        
-        // The API returns the User entity directly (not wrapped in a response)
-        if (updatedUser) {
-          // Cast the response to the expected User type
-          const userResponse = updatedUser as any;
-          
-          // Create updated user entity and update the AuthProvider
-          try {
-            const { User } = await import('@/core/domain/entities/User');
-            const updatedUserEntity = User.fromData({
-              user_id: userResponse.user_id || user.id,
-              email: userResponse.email || email,
-              firstName: userResponse.firstName || firstName,
-              lastName: userResponse.lastName || lastName
-            });
-            
-            // Get current token from localStorage
-            const savedAuth = localStorage.getItem('authContext');
-            let currentToken = null;
-            if (savedAuth) {
-              try {
-                const authData = JSON.parse(savedAuth);
-                currentToken = authData.token;
-              } catch (e) {
-                console.warn('Could not parse auth data:', e);
-              }
-            }
-            
-            // Update localStorage with new user data
-            if (currentToken) {
-              localStorage.setItem('authContext', JSON.stringify({
-                user: updatedUserEntity.toData(),
-                token: currentToken
-              }));
-              
-              // Dispatch auth event to update AuthProvider immediately
-              window.dispatchEvent(new CustomEvent('auth:login', {
-                detail: { 
-                  user: updatedUserEntity,
-                  token: currentToken
-                }
-              }));
-              
-              toast.success('Profile updated successfully!', { position: 'top-center' });
-              
-              // Update the form state with the new values
-              setFirstName(updatedUserEntity.firstName || '');
-              setLastName(updatedUserEntity.lastName || '');
-              setEmail(updatedUserEntity.email || '');
-              
-              // Update original values so hasProfileChanged works correctly
-              setOriginal({
-                firstName: updatedUserEntity.firstName || '',
-                lastName: updatedUserEntity.lastName || '',
-                email: updatedUserEntity.email || ''
-              });
-
-              
-            } else {
-              console.warn('No token found, reloading page');
-              window.location.reload();
-            }
-          } catch (entityError) {
-            console.warn('Could not create User entity, reloading page:', entityError);
-            window.location.reload();
-          }
+      if (user && user.user_id) {
+        const res = await authApi.updateUser(user.user_id, { email, firstName, lastName })
+        // If backend returns updated user, update auth context too
+          if (res && typeof res === 'object' && (res as any).user) {
+          const updated = (res as any).user
+          login({ ...(user || { user_id: 0 }), firstName: updated.firstName, lastName: updated.lastName, email: updated.email }, null as any)
+          toast.success('Profile saved.', { position: 'top-center' })
         } else {
-          toast.success('Profile updated successfully!', { position: 'top-center' });
-          // Update form fields and original values even if we don't get user data back
-          setFirstName(firstName);
-          setLastName(lastName);
-          setEmail(email);
-          setOriginal({ firstName, lastName, email });
+          // Fallback: update local context
+          const updatedUser = { ...(user || { user_id: 0 }), firstName, lastName, email }
+          login(updatedUser, null as any)
+          toast.success('Profile saved locally (server response unexpected).', { position: 'top-center' })
         }
       } else {
         toast.error('Not signed in', { position: 'top-center' })
@@ -146,12 +83,10 @@ export default function ProfilePage() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [changePasswordDialogOpen, setChangePasswordDialogOpen] = useState(false)
-  const [currentPasswordFieldType, setCurrentPasswordFieldType] = useState<'text' | 'password'>('text') // Start as text to prevent autofill
-  const [newPasswordFieldType, setNewPasswordFieldType] = useState<'text' | 'password'>('text') // Start as text to prevent autofill
 
   // Debounced verification of current password
   React.useEffect(() => {
-    if (!user || !user.id) {
+    if (!user || !user.user_id) {
       return
     }
 
@@ -161,7 +96,7 @@ export default function ProfilePage() {
 
     const t = setTimeout(async () => {
       try {
-        await authApi.verifyPassword(user.id, currentPassword)
+        await authApi.verifyPassword(user.user_id, currentPassword)
       } catch {
         /* ignore verification errors */
       }
@@ -173,7 +108,7 @@ export default function ProfilePage() {
   const handleChangePassword = async () => {
     setChanging(true)
     try {
-      if (!user || !user.id) {
+      if (!user || !user.user_id) {
         toast.error('Not signed in', { position: 'top-center' })
         return
       }
@@ -187,19 +122,13 @@ export default function ProfilePage() {
         toast.error('New password must be different from the current password', { position: 'top-center' })
         return
       }
-      const res = await authApi.changePassword(user.id, currentPassword, newPassword)
+      const res = await authApi.changePassword(user.user_id, currentPassword, newPassword)
       if (res && (res as any).success) {
-        toast.success('Password changed successfully. You will be signed out.', { position: 'top-center' })
+        toast.success('Password changed successfully', { position: 'top-center' })
         setCurrentPassword("")
         setNewPassword("")
         // close confirmation dialog on success
         setChangePasswordDialogOpen(false)
-        
-        // Sign out the user after successful password change for security
-        setTimeout(() => {
-          logout()
-          router.push('/auth/sign-in')
-        }, 2000) // Give user time to see the success message
       } else {
         toast.error('Failed to change password', { position: 'top-center' })
       }
@@ -324,7 +253,16 @@ export default function ProfilePage() {
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Notices are handled by react-hot-toast via the TopBar Toaster */}
       </Card>
+
+        {/* Toaster is provided globally in TopBar; profile triggers toasts with react-hot-toast */}
+
+        {/*
+          Prevent browser password autofill: include hidden dummy username/password inputs
+          and set explicit autocomplete attributes on real password fields below.
+        */}
         <div style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0, overflow: 'hidden' }} aria-hidden>
           <input name="fake-username" autoComplete="username" tabIndex={-1} />
           <input name="fake-password" type="password" autoComplete="new-password" tabIndex={-1} />
@@ -339,44 +277,17 @@ export default function ProfilePage() {
                 <Input
                   className="w-full pr-10 text-sm"
                   value={currentPassword}
-                  type={showCurrentPassword ? 'text' : currentPasswordFieldType}
-                  onChange={(e) => {
-                    setCurrentPassword(e.target.value);
-                    if (e.target.value.length > 0 && !showCurrentPassword && currentPasswordFieldType === 'text') {
-                      setCurrentPasswordFieldType('password');
-                    }
-                  }}
+                  type={showCurrentPassword ? 'text' : 'password'}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
                   autoComplete="off"
+
                   data-lpignore="true"
-                  data-1p-ignore="true"
-                  data-bwignore="true"
-                  data-form-type="other"
-                  name="not-a-password-field"
-                  placeholder="Enter your current password"
-                  onFocus={(e: React.FocusEvent<HTMLInputElement>) => {
-                    // Keep as text initially to prevent autofill dropdown
-                    e.currentTarget.setAttribute('autocomplete', 'off');
-                    e.currentTarget.setAttribute('data-lpignore', 'true');
-                  }}
-                  onKeyDown={(e) => {
-                    // Switch to password type on first keypress if not showing password
-                    if (!showCurrentPassword && currentPasswordFieldType === 'text') {
-                      setTimeout(() => setCurrentPasswordFieldType('password'), 0);
-                    }
-                  }}
+                  name="_current_pwd"
+
+                  readOnly
+                  onFocus={(e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.readOnly = false; }}
                 />
-                <button 
-                  type="button" 
-                  className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center text-muted-foreground" 
-                  onClick={() => {
-                    setShowCurrentPassword(s => !s);
-                    // Always use password type when toggling visibility
-                    if (currentPasswordFieldType === 'text' && currentPassword.length > 0) {
-                      setCurrentPasswordFieldType('password');
-                    }
-                  }} 
-                  aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}
-                >
+                <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center text-muted-foreground" onClick={() => setShowCurrentPassword(s => !s)} aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}>
                   {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
@@ -384,47 +295,8 @@ export default function ProfilePage() {
             <div>
               <label className="text-xs font-medium">New password</label>
               <div className="relative">
-                <Input 
-                  className="w-full pr-10 text-sm" 
-                  value={newPassword} 
-                  type={showNewPassword ? 'text' : newPasswordFieldType}
-                  onChange={(e) => {
-                    setNewPassword(e.target.value);
-                    // Switch to password type after user starts typing (unless they want to show it)
-                    if (e.target.value.length > 0 && !showNewPassword && newPasswordFieldType === 'text') {
-                      setNewPasswordFieldType('password');
-                    }
-                  }}
-                  autoComplete="off"
-                  data-lpignore="true"
-                  data-1p-ignore="true"
-                  data-bwignore="true"
-                  data-form-type="other"
-                  name="not-a-new-password"
-                  placeholder="Enter your new password"
-                  onFocus={(e: React.FocusEvent<HTMLInputElement>) => {
-                    e.currentTarget.setAttribute('autocomplete', 'off');
-                    e.currentTarget.setAttribute('data-lpignore', 'true');
-                  }}
-                  onKeyDown={(e) => {
-                    // Switch to password type on first keypress if not showing password
-                    if (!showNewPassword && newPasswordFieldType === 'text') {
-                      setTimeout(() => setNewPasswordFieldType('password'), 0);
-                    }
-                  }}
-                />
-                <button 
-                  type="button" 
-                  className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center text-muted-foreground" 
-                  onClick={() => {
-                    setShowNewPassword(s => !s);
-                    // Always use password type when toggling visibility
-                    if (newPasswordFieldType === 'text' && newPassword.length > 0) {
-                      setNewPasswordFieldType('password');
-                    }
-                  }} 
-                  aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
-                >
+                <Input className="w-full pr-10 text-sm" value={newPassword} type={showNewPassword ? 'text' : 'password'} onChange={(e) => setNewPassword(e.target.value)} autoComplete="new-password" name="new-password" />
+                <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center text-muted-foreground" onClick={() => setShowNewPassword(s => !s)} aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}>
                   {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
@@ -432,13 +304,7 @@ export default function ProfilePage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <Button variant="ghost" onClick={() => { 
-                setCurrentPassword(''); 
-                setNewPassword('');
-                // Reset field types to text to prevent autofill on next use
-                setCurrentPasswordFieldType('text');
-                setNewPasswordFieldType('text');
-              }}>Reset</Button>
+              <Button variant="ghost" onClick={() => { setCurrentPassword(''); setNewPassword('') }}>Reset</Button>
 
               {/* Change password confirmation dialog */}
               <Dialog open={changePasswordDialogOpen} onOpenChange={setChangePasswordDialogOpen}>
@@ -448,7 +314,7 @@ export default function ProfilePage() {
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Confirm password change</DialogTitle>
-                    <DialogDescription>Do you want to change your password now? You'll be sign-out after confirming</DialogDescription>
+                    <DialogDescription>Do you want to change your password now?</DialogDescription>
                   </DialogHeader>
                     <DialogFooter>
                     <Button variant="ghost">Cancel</Button>

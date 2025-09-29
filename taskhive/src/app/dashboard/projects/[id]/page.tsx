@@ -3,12 +3,11 @@
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
-import { Button } from "@/presentation/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Calendar, Settings, CheckCircle, Clock, Flame, Gauge, Leaf, Rocket } from "lucide-react";
-import EnhancedKanbanBoard from "@/presentation/components/task/enhanced-kanban-board";
-import { Project } from "@/core/domain/entities/Project";
-import { useAuth } from "@/presentation/hooks/useAuth";
-import { useProjects } from "@/presentation/hooks/useProjects";
+import EnhancedKanbanBoard from "@/components/task/enhanced-kanban-board";
+import { authApi, Project } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 export default function ProjectPage() {
   const params = useParams();
@@ -33,7 +32,7 @@ export default function ProjectPage() {
       setLoading(true);
       try {
         // Pass user id to API; fallback to 1 if unknown
-    const userId = user?.id ?? 1;
+    const userId = Number(user?.user_id ?? 1);
     const res = await authApi.getProject(Number(projectId), userId);
     let data: unknown = null;
     if (res && typeof res === 'object' && 'data' in res) data = (res as Record<string, unknown>).data;
@@ -48,7 +47,7 @@ export default function ProjectPage() {
       }
     })();
   return () => { mounted = false; };
-  }, [projectId, user?.id]);
+  }, [projectId, user?.user_id]);
 
   return (
     <div className="min-h-screen bg-background">

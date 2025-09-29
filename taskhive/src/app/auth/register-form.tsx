@@ -7,18 +7,17 @@ import { Eye, EyeOff, Mail, Lock, User, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import Image from 'next/image'
 
-import { Button } from "@/presentation/components/ui/button"
-import { Input } from "@/presentation/components/ui/input"
-import { Label } from "@/presentation/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/presentation/components/ui/card"
-import { Checkbox } from "@/presentation/components/ui/checkbox"
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/presentation/components/ui/tooltip"
-import { useAuth } from "@/presentation/hooks/useAuth"
-import { TermsOfService } from "@/presentation/components/auth/terms-of-service"
-import { PrivacyPolicy } from "@/presentation/components/auth/privacy-policy"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
+import { authApi } from "@/lib/api"
+import { TermsOfService } from "@/components/auth/terms-of-service"
+import { PrivacyPolicy } from "@/components/auth/privacy-policy"
 
 export function RegisterForm() {
-  const { register } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -72,16 +71,20 @@ export function RegisterForm() {
 
     try {
       // debug: registration attempt (removed console.log for production)
-      // TODO: Implement register use case
-      console.log('Register attempt:', {
+      const response = await authApi.register({
         email: formData.email,
         password: formData.password,
         firstName: formData.firstName,
         lastName: formData.lastName
       })
-      // TODO: registration response handled below
-      alert('Registration functionality will be implemented with RegisterUseCase')
-      router.push('/auth/sign-in')
+      // registration response handled below
+      if (response.success) {
+        // Registration successful - redirect to sign-in with success message
+        const message = encodeURIComponent('Registration successful! Please sign in with your credentials.');
+        router.push(`/auth/sign-in?message=${message}&email=${encodeURIComponent(formData.email)}`);
+      } else {
+        setError(response.message || 'Registration failed.')
+      }
     } catch (error: unknown) {
       console.error('Registration error:', error)
       let message = 'Registration failed. Please try again.'

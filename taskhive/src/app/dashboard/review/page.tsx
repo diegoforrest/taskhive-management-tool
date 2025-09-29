@@ -2,11 +2,9 @@
 
 import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import ReviewDashboard from "@/presentation/components/review/review-dashboard";
-import { useAuth } from '@/presentation/hooks/useAuth';
-import { useProjects } from '@/presentation/hooks/useProjects';
-import { Project } from '@/core/domain/entities/Project';
-import { Task } from '@/core/domain/entities/Task';
+import ReviewDashboard from "@/components/review/review-dashboard";
+import { useAuth } from '@/lib/auth-context';
+import { authApi, Project, Task } from '@/lib/api';
 
 function hasData<T>(v: unknown): v is { data: T } {
   return typeof v === 'object' && v !== null && 'data' in v;

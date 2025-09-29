@@ -2,12 +2,12 @@
 
 import * as React from "react"
 import { useState } from "react"
-import { Input } from "@/presentation/components/ui/input"
-import { Label } from "@/presentation/components/ui/label"
-import { Button } from "@/presentation/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/presentation/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { toast } from 'react-hot-toast'
-import { useAuth } from '@/presentation/hooks/useAuth'
+import { authApi } from '@/lib/api'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("")
@@ -18,9 +18,18 @@ export default function ForgotPasswordPage() {
     e.preventDefault()
     setLoading(true)
     try {
-      // TODO: Implement password reset use case
-      // const res = await userRepository.requestPasswordReset(new Email(email))
-      toast.success('If that email exists we sent reset instructions.', { position: 'top-center' })
+      const res = await authApi.requestPasswordReset(email)
+      const body = res as any
+      // If backend explicitly says email not registered, surface that message
+      if (body && body.success === false && body.message) {
+        toast.error(body.message, { position: 'top-center' })
+      } else {
+        toast.success(body?.message || 'If that email exists we sent reset instructions.', { position: 'top-center' })
+        if (body && body.resetLink) {
+          // expose the reset link in the UI for development convenience
+          setResetLink(body.resetLink)
+        }
+      }
     } catch (err: any) {
       console.error('Forgot password error', err)
       const msg = (err && (err.message || err.error)) || 'Failed to request password reset'
