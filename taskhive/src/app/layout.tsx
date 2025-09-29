@@ -14,6 +14,10 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "TaskHive",
   description: "TaskHive",
+  icons: {
+    icon: '/logo.png',
+    shortcut: '/logo.png',
+  },
 }
 
 export default async function RootLayout({
