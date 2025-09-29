@@ -1,5 +1,8 @@
-// Default to local backend during development unless NEXT_PUBLIC_API_URL is set
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:3001';
+// // Default to local backend during development unless NEXT_PUBLIC_API_URL is set
+// const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:3001';
+
+// FOR DEPLOYED VERSION
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://taskhive-backend-cjry.onrender.com';
 
 interface LoginRequest {
   user_id: string; // Can be either numeric string or email
