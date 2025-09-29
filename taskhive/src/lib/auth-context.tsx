@@ -44,12 +44,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false)
   }, [])
 
-  const login = (userData: User, userToken?: string) => {
+  const login = (userData: User, userToken?: string | null) => {
     setUser(userData)
-    setToken(userToken || null)
-    setAccessToken(userToken ?? null)
-    const authData = { user: userData, token: userToken }
-    localStorage.setItem('authContext', JSON.stringify(authData))
+
+    // If caller explicitly passed a token (including null) we should update/clear it.
+    // If caller omitted the token (undefined), preserve the existing token.
+    if (typeof userToken !== 'undefined') {
+      setToken(userToken)
+      setAccessToken(userToken ?? null)
+    }
+
+    // Persist current auth context: use the provided token when present, otherwise the current state token.
+    const persistedToken = typeof userToken !== 'undefined' ? userToken : token
+    const authData = { user: userData, token: persistedToken }
+    try {
+      localStorage.setItem('authContext', JSON.stringify(authData))
+    } catch (e) {
+      console.warn('Failed to persist auth context', e)
+    }
   }
 
   const logout = () => {

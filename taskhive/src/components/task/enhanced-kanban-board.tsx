@@ -1099,6 +1099,35 @@ interface TaskModalProps {
 const TaskModal = ({ item, onClose, onUpdate, onDelete }: TaskModalProps) => {
   const [editedItem, setEditedItem] = useState<TaskWithReview>(item);
 
+  // Ensure due_date is populated for the date input. Backend may provide
+  // either `due_date` or `dueDate`. Also normalize to YYYY-MM-DD which
+  // is the expected value for <input type="date">.
+  React.useEffect(() => {
+    const normalizeDate = (d?: string | null) => {
+      if (!d) return '';
+      // If already in YYYY-MM-DD, return first 10 chars
+      const s = String(d);
+      if (!s) return '';
+      // If contains 'T', strip time portion
+      const dateOnly = s.includes('T') ? s.split('T')[0] : s;
+      // Some servers return full ISO or other formats; try to create a Date and format
+      const dt = new Date(dateOnly);
+      if (!isNaN(dt.getTime())) {
+        const y = dt.getFullYear();
+        const m = `${dt.getMonth() + 1}`.padStart(2, '0');
+        const dd = `${dt.getDate()}`.padStart(2, '0');
+        return `${y}-${m}-${dd}`;
+      }
+      // fallback to the raw dateOnly substring
+      return dateOnly.slice(0, 10);
+    };
+
+    const sourceDate = (item as any).due_date ?? (item as any).dueDate ?? '';
+    const normalized = normalizeDate(sourceDate);
+    setEditedItem(prev => ({ ...item, ...(prev || {}), due_date: normalized } as TaskWithReview));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item]);
+
   const saveItem = (): void => {
     onUpdate(editedItem);
     onClose();

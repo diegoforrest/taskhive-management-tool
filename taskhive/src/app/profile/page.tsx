@@ -13,7 +13,7 @@ import { toast } from 'react-hot-toast'
 import { Eye, EyeOff } from 'lucide-react'
 
 export default function ProfilePage() {
-  const { user, login } = useAuth()
+  const { user, login, logout } = useAuth()
   const router = useRouter()
   const [firstName, setFirstName] = useState(user?.firstName || "")
   const [lastName, setLastName] = useState(user?.lastName || "")
@@ -52,13 +52,14 @@ export default function ProfilePage() {
         // If backend returns updated user, update auth context too
           if (res && typeof res === 'object' && (res as any).user) {
           const updated = (res as any).user
-          login({ ...(user || { user_id: 0 }), firstName: updated.firstName, lastName: updated.lastName, email: updated.email }, null as any)
+          // preserve existing auth token by not passing a second argument
+          login({ ...(user || { user_id: 0 }), firstName: updated.firstName, lastName: updated.lastName, email: updated.email })
           toast.success('Profile saved.', { position: 'top-center' })
         } else {
-          // Fallback: update local context
+          // Fallback: update local context and preserve token
           const updatedUser = { ...(user || { user_id: 0 }), firstName, lastName, email }
-          login(updatedUser, null as any)
-          toast.success('Profile saved locally (server response unexpected).', { position: 'top-center' })
+          login(updatedUser)
+          toast.success('Successfully saved', { position: 'top-center' })
         }
       } else {
         toast.error('Not signed in', { position: 'top-center' })
@@ -129,6 +130,17 @@ export default function ProfilePage() {
         setNewPassword("")
         // close confirmation dialog on success
         setChangePasswordDialogOpen(false)
+        // Sign out the user after changing password for security and force re-login
+        try {
+          logout()
+        } catch {
+          /* ignore logout errors */
+        }
+        try {
+          router.push('/auth/sign-in')
+        } catch {
+          // ignore navigation errors
+        }
       } else {
         toast.error('Failed to change password', { position: 'top-center' })
       }
@@ -279,13 +291,21 @@ export default function ProfilePage() {
                   value={currentPassword}
                   type={showCurrentPassword ? 'text' : 'password'}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  autoComplete="off"
-
+                  // Use a non-standard name and new-password autocomplete to avoid
+                  // triggering browser password manager dropdowns for saved credentials.
+                  autoComplete="new-password"
                   data-lpignore="true"
-                  name="_current_pwd"
+                  name="_current_pwd_fake"
 
                   readOnly
-                  onFocus={(e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.readOnly = false; }}
+                  onFocus={(e: React.FocusEvent<HTMLInputElement>) => {
+                    // Remove readonly on focus so the field becomes editable, and
+                    // ensure we don't show the saved-password UI by keeping the
+                    // field name/autocomplete non-standard. Also ensure the input
+                    // shows as password (if it was switched by password-visibility toggle).
+                    e.currentTarget.readOnly = false;
+                    setShowCurrentPassword(false);
+                  }}
                 />
                 <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center text-muted-foreground" onClick={() => setShowCurrentPassword(s => !s)} aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}>
                   {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -314,7 +334,7 @@ export default function ProfilePage() {
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Confirm password change</DialogTitle>
-                    <DialogDescription>Do you want to change your password now?</DialogDescription>
+                    <DialogDescription>Do you want to change your password now? You will be sign-out shortly</DialogDescription>
                   </DialogHeader>
                     <DialogFooter>
                     <Button variant="ghost">Cancel</Button>
