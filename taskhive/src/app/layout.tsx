@@ -1,4 +1,3 @@
-// app/layout.tsx
 import { Inter } from "next/font/google"
 import { cookies } from "next/headers"
 import type { Metadata } from "next"
