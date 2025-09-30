@@ -1,11 +1,11 @@
-// // Default to local backend during development unless NEXT_PUBLIC_API_URL is set
-// const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:3001';
+// Default to local backend during development unless NEXT_PUBLIC_API_URL is set
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:3001';
 
-// FOR DEPLOYED VERSION
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://taskhive-backend-cjry.onrender.com';
+// // FOR DEPLOYED VERSION
+// const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://taskhive-backend-cjry.onrender.com';
 
 interface LoginRequest {
-  user_id: string; // Can be either numeric string or email
+  user_id: string; 
   password: string;
 }
 
@@ -44,7 +44,7 @@ export type ApiResponse<T = unknown> = {
 
 import axios, { AxiosInstance } from 'axios';
 
-// Create axios instance with baseURL and sensible defaults
+
 const axiosInstance: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000, // 10s timeout
@@ -53,7 +53,7 @@ const axiosInstance: AxiosInstance = axios.create({
   }
 });
 
-// Allow synchronous setting/clearing of Authorization header from other modules
+
 export function setAccessToken(token: string | null) {
   if (token) {
     axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
@@ -62,22 +62,18 @@ export function setAccessToken(token: string | null) {
   }
 }
 
-// Centralized response/error interceptor to normalize errors across the app.
+
 axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
-    // If backend returned structured JSON, prefer that
     if (error && error.response) {
       const { status, data } = error.response;
-      // If body is HTML (some servers return HTML error pages), normalize it
       if (typeof data === 'string' && data.toLowerCase().includes('<html')) {
         return Promise.reject({ message: 'Server error — please try again later.', status });
       }
-      // If data has message or error fields, use them
       if (data && (data.message || data.error)) {
         return Promise.reject({ message: data.message || data.error, data, status });
       }
-      // Fallback: if there's a status code, give a friendly message
       if (status >= 500) {
         return Promise.reject({ message: 'Server error — please try again later.', data, status });
       }
@@ -89,24 +85,16 @@ axiosInstance.interceptors.response.use(
   }
 );
 
-// Utility wrapper to call axios and normalize responses to ApiResponse<T>
 const apiRequest = async (endpoint: string, options: { method?: string; data?: unknown; params?: Record<string, unknown>; headers?: Record<string, string> } = {}): Promise<ApiResponse<unknown>> => {
   try {
     const method = (options.method || 'GET').toUpperCase();
-
-    // Ensure request bodies are sent as valid JSON text. Some environments
-    // (proxies, CLI quoting, or accidental double-stringify) can cause the
-    // server to receive malformed JSON. Explicitly stringify objects here
-    // and set a strict Content-Type to reduce that class of errors.
     let requestData: unknown = options.data;
     const headers = {
       ...(options.headers || {}),
-      // Ensure charset is included which helps some servers parse correctly
       'Content-Type': (options.headers && options.headers['Content-Type']) || 'application/json; charset=utf-8',
     } as Record<string, string>;
 
     if (requestData !== undefined && requestData !== null) {
-      // If caller passed an object, stringify it exactly once.
       if (typeof requestData === 'object' && !(requestData instanceof FormData) && !(requestData instanceof URLSearchParams)) {
         requestData = JSON.stringify(requestData);
       }
@@ -119,21 +107,17 @@ const apiRequest = async (endpoint: string, options: { method?: string; data?: u
       params: options.params,
       headers,
     });
-
-    // axios already parses JSON responses
     return res.data as ApiResponse<unknown>;
   } catch (error: any) {
-    // Normalize error for callers
     console.error('API Request Error:', error?.message || error);
     if (error?.response && error.response.data) {
-      // Backend returned structured error
       throw error.response.data;
     }
     throw error;
   }
 };
 
-// Authentication API functions
+
 export const authApi = {
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
     console.log('Real API login request:', credentials);
@@ -143,7 +127,6 @@ export const authApi = {
       data: credentials,
     })) as any;
 
-    // Normalize backend shape: some endpoints return `access_token` while the frontend expects `token`.
     if (res && !res.token && res.access_token) {
       res.token = res.access_token;
     }
@@ -222,13 +205,11 @@ export const authApi = {
 
   getProject: async (projectId: number, user_id: number): Promise<{ success: boolean; data: Project }> => {
     console.log('Real API get project request:', { projectId, user_id });
-    
-    // Since we don't have a single project endpoint, get all projects and filter
+
     const response = await apiRequest(`/test03/get_projects?user_id=${user_id}`, {
       method: 'GET',
     });
-    
-    // response may be ApiResponse<Project[]> or Project[]
+
     if (typeof response === 'object' && response !== null && 'data' in response) {
       const maybeData = (response as Record<string, unknown>)['data'];
       if (Array.isArray(maybeData)) {
@@ -279,8 +260,6 @@ export const authApi = {
     return res
   },
 
-  // Request password reset (forgot password)
-  // NOTE: Assumes backend exposes POST /test14/forgot_password accepting { email }
   requestPasswordReset: async (email: string) => {
     console.log('Real API request password reset for:', email)
     const res = await apiRequest(`/test14/forgot_password`, {
@@ -407,12 +386,12 @@ export interface Task {
 }
 
 export interface CreateTaskRequest {
-  name: string;  // Changed from 'title' to match backend
-  contents?: string;  // Changed from 'description' to match backend
+  name: string;
+  contents?: string;
   type?: 'task' | 'project';
   status?: 'Todo' | 'In Progress' | 'Done';
-  priority?: 'Low' | 'Medium' | 'High' | 'Critical';  // Added 'Critical' to match backend
-  due_date?: string;  // Changed from 'dueDate' to match backend
+  priority?: 'Low' | 'Medium' | 'High' | 'Critical';
+  due_date?: string; 
   assignee?: string;
   progress?: number;
 }
@@ -422,24 +401,23 @@ export type UpdateTaskRequest = Partial<CreateTaskRequest>
 export interface TasksByStatus {
   'Todo': Task[];
   'In Progress': Task[];
-  'Done': Task[];  // Changed from 'Completed' to match backend
-  'Completed'?: Task[]; // legacy variant
+  'Done': Task[]; 
+  'Completed'?: Task[]; 
 }
 
-// Mock data storage for tasks (keep for now until we build task endpoints)
 const mockTasks: Task[] = [
   {
     id: 1,
-  name: "Setup project structure",  // Changed from 'title'
+  name: "Setup project structure",  
   title: "Setup project structure",
-  contents: "Initialize the project with proper folder structure",  // Changed from 'description'
+  contents: "Initialize the project with proper folder structure",  
   description: "Initialize the project with proper folder structure",
     type: 'task',
-    status: 'Done',  // Changed from 'Completed'
+    status: 'Done', 
     priority: 'High',
     assignee: "John Doe",
     progress: 100,
-  project_id: 1,  // Changed from 'user_id' and added project_id
+  project_id: 1,  
   due_date: undefined,
   dueDate: undefined,
     createdAt: new Date().toISOString(),
@@ -473,7 +451,7 @@ const mockTasks: Task[] = [
     priority: 'High',
     assignee: "Bob Johnson",
     progress: 0,
-  project_id: 1,  // Changed from 'user_id' and added project_id
+  project_id: 1, 
   due_date: undefined,
   dueDate: undefined,
     createdAt: new Date().toISOString(),
@@ -508,10 +486,8 @@ const mockProjects: Project[] = [
 let nextTaskId = 4;
 let nextProjectId = 2;
 
-// Utility function to simulate API delay
 const mockDelay = (ms: number = 500) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Tasks API functions (keeping mock for now)
 export interface ChangeLogEntry {
   id: number;
   description?: string;
@@ -525,14 +501,13 @@ export interface ChangeLogEntry {
 }
 
 export const tasksApi = {
-  // Get all tasks grouped by status
   getTasksByStatus: async (): Promise<TasksByStatus> => {
     await mockDelay();
     
     const groupedTasks: TasksByStatus = {
       'Todo': mockTasks.filter(task => task.status === 'Todo'),
       'In Progress': mockTasks.filter(task => task.status === 'In Progress'),
-      'Done': mockTasks.filter(task => task.status === 'Done'),  // Changed from 'Completed'
+      'Done': mockTasks.filter(task => task.status === 'Done'),  
     };
     
     return groupedTasks;
@@ -554,7 +529,7 @@ export const tasksApi = {
       status: task.status || 'Todo',
       priority: task.priority || 'Medium',
       progress: task.progress || 0,
-      project_id: 1, // Mock project ID
+      project_id: 1, 
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
